@@ -1,18 +1,3 @@
-"""
-Stock Screener Application - UI Matching Original Design
-=========================================================
-
-Features:
-- Three-column layout (Bullish/Bearish/Neutral)
-- Expandable stock cards with detailed metrics
-- MACD Histogram 5-day differences
-- Detailed analysis page with charts
-- Auto-refresh functionality
-
-Author: Redesigned version
-Date: 2024-12-11
-"""
-
 import os
 import random
 import sqlite3
