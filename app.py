@@ -1,21 +1,38 @@
+"""
+Stock Screener Application - UI Matching Original Design
+=========================================================
+
+Features:
+- Three-column layout (Bullish/Bearish/Neutral)
+- Expandable stock cards with detailed metrics
+- MACD Histogram 5-day differences
+- Detailed analysis page with charts
+- Auto-refresh functionality
+
+Author: Redesigned version
+Date: 2024-12-11
+"""
+
 import os
 import random
 import sqlite3
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 import plotly.graph_objects as go
 import requests
 import streamlit as st
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
+# Indian Standard Time (IST) - UTC+5:30
+IST = timezone(timedelta(hours=5, minutes=30))
 # Load environment variables from .env file
 from dotenv import load_dotenv
 from plotly.subplots import make_subplots
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 load_dotenv()
 
@@ -4146,7 +4163,7 @@ def screening_page():
         )
         if results:
             st.session_state.stock_list_data = results
-            st.session_state.last_refresh_time = datetime.now()
+            st.session_state.last_refresh_time = datetime.now(IST)
 
     # Run screening - Only on first load or manual refresh
     elif not st.session_state.stock_list_data or st.session_state.force_refresh:
@@ -4169,18 +4186,25 @@ def screening_page():
         )
 
         st.session_state.stock_list_data = results if results else []
-        st.session_state.last_refresh_time = datetime.now()
+        st.session_state.last_refresh_time = datetime.now(IST)
 
         # Clear loading elements
         progress_bar.empty()
         status_text.empty()
         loading_placeholder.empty()
 
-    # Show last refresh time
+    # Helper function to get IST time
+    def get_ist_time():
+        return datetime.now(IST)
+
+    # Show last refresh time in IST
     if st.session_state.last_refresh_time:
-        last_refresh_str = st.session_state.last_refresh_time.strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
+        # Convert to IST if it's naive datetime
+        if st.session_state.last_refresh_time.tzinfo is None:
+            ist_time = st.session_state.last_refresh_time.replace(tzinfo=IST)
+        else:
+            ist_time = st.session_state.last_refresh_time.astimezone(IST)
+        last_refresh_str = ist_time.strftime("%Y-%m-%d %H:%M:%S IST")
         st.caption(f"📅 Last Refreshed: {last_refresh_str}")
 
     # Auto-refresh every 10 seconds (silent background refresh)
@@ -4191,7 +4215,7 @@ def screening_page():
         and st.session_state.stock_list_data
     ):
         time_since_refresh = (
-            datetime.now() - st.session_state.last_refresh_time
+            datetime.now(IST) - st.session_state.last_refresh_time.replace(tzinfo=IST)
         ).total_seconds()
 
         try:
@@ -4216,7 +4240,7 @@ def screening_page():
                 )
                 if results:
                     st.session_state.stock_list_data = results
-                    st.session_state.last_refresh_time = datetime.now()
+                    st.session_state.last_refresh_time = datetime.now(IST)
         except ImportError:
             # Without streamlit-autorefresh, we can't do smooth background refresh
             # Show instruction to install
@@ -4235,7 +4259,7 @@ def screening_page():
                 )
                 if results:
                     st.session_state.stock_list_data = results
-                    st.session_state.last_refresh_time = datetime.now()
+                    st.session_state.last_refresh_time = datetime.now(IST)
                     st.rerun()
 
     # Results header
