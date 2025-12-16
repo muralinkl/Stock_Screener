@@ -1,0 +1,23 @@
+# Upstox API Configuration
+# ==========================
+# Keep this file secure and never commit to version control!
+
+# Your Upstox API Key (from Upstox Developer Console)
+UPSTOX_API_KEY=edc571d8-281a-4299-8e7e-6419072d63c5
+
+# Your Upstox API Secret (from Upstox Developer Console)
+UPSTOX_API_SECRET=i2mxuje8lb
+
+# Redirect URL (must match the one registered in Upstox Developer Console)
+UPSTOX_REDIRECT_URL=https://127.0.0.0
+
+# API Base URLs
+UPSTOX_TOKEN_URL=https://api.upstox.com/v2/login/authorization/token
+UPSTOX_BASE_URL=https://api.upstox.com
+
+# Database Configuration
+DB_NAME=stock_screener.db
+
+# App Settings
+AUTO_REFRESH_INTERVAL=30
+MAX_PARALLEL_WORKERS=15
