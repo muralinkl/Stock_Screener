@@ -2870,18 +2870,37 @@ def show_buy_dialog():
     # Display selected stocks
     st.markdown("### 🎯 Selected Stocks for Trading")
 
+    # Check if dark mode is enabled
+    is_dark = st.session_state.get("dark_mode", False)
+
     for i, stock in enumerate(stocks_to_trade, 1):
         option_type = "CALL (CE)" if stock["trend"] == "Bullish" else "PUT (PE)"
         trend_color = "🟢" if stock["trend"] == "Bullish" else "🔴"
 
+        # Dark mode colors
+        if is_dark:
+            if stock["trend"] == "Bullish":
+                bg_color = "#1b5e20"  # Dark green
+                text_color = "#ffffff"
+            else:
+                bg_color = "#b71c1c"  # Dark red
+                text_color = "#ffffff"
+        else:
+            if stock["trend"] == "Bullish":
+                bg_color = "#d4edda"  # Light green
+                text_color = "#155724"
+            else:
+                bg_color = "#f8d7da"  # Light red
+                text_color = "#721c24"
+
         st.markdown(
             f"""
-        <div style="background: {"#d4edda" if stock["trend"] == "Bullish" else "#f8d7da"}; padding: 15px; border-radius: 10px; margin: 10px 0;">
-            <h4 style="margin: 0;">{trend_color} {i}. {stock["symbol"]} - {stock["name"]}</h4>
-            <p style="margin: 5px 0;">💰 <strong>Current Price:</strong> ₹{stock["current_price"]:,.2f}</p>
-            <p style="margin: 5px 0;">📊 <strong>Trend:</strong> {stock["trend"]}</p>
-            <p style="margin: 5px 0;">🎯 <strong>Option Type:</strong> {option_type}</p>
-            <p style="margin: 5px 0;">💪 <strong>Intraday Strength:</strong> {stock["intraday_strength_pct"]:.4f}%</p>
+        <div style="background: {bg_color}; padding: 15px; border-radius: 10px; margin: 10px 0; color: {text_color};">
+            <h4 style="margin: 0; color: {text_color};">{trend_color} {i}. {stock["symbol"]} - {stock["name"]}</h4>
+            <p style="margin: 5px 0; color: {text_color};">💰 <strong>Current Price:</strong> ₹{stock["current_price"]:,.2f}</p>
+            <p style="margin: 5px 0; color: {text_color};">📊 <strong>Trend:</strong> {stock["trend"]}</p>
+            <p style="margin: 5px 0; color: {text_color};">🎯 <strong>Option Type:</strong> {option_type}</p>
+            <p style="margin: 5px 0; color: {text_color};">💪 <strong>Intraday Strength:</strong> {stock["intraday_strength_pct"]:.4f}%</p>
         </div>
         """,
             unsafe_allow_html=True,
@@ -3098,6 +3117,9 @@ def execute_trades_with_progress(stocks_to_trade, profit_target):
     # Display results
     st.markdown("### 📊 Trade Results")
 
+    # Check if dark mode is enabled
+    is_dark = st.session_state.get("dark_mode", False)
+
     success_count = sum(1 for r in results if r["status"] == "success")
     failed_count = len(results) - success_count
 
@@ -3109,18 +3131,30 @@ def execute_trades_with_progress(stocks_to_trade, profit_target):
     # Store results in session state for verification
     st.session_state.last_trade_results = results
 
+    # Dark mode colors
+    if is_dark:
+        success_bg = "#1b5e20"
+        success_text = "#ffffff"
+        error_bg = "#b71c1c"
+        error_text = "#ffffff"
+    else:
+        success_bg = "#d4edda"
+        success_text = "#155724"
+        error_bg = "#f8d7da"
+        error_text = "#721c24"
+
     for result in results:
         if result["status"] == "success":
             st.markdown(
                 f"""
-            <div style="background: #d4edda; padding: 15px; border-radius: 10px; margin: 10px 0;">
-                <h4 style="margin: 0; color: #155724;">✅ {result["symbol"]} - SUCCESS</h4>
-                <p style="margin: 5px 0;">📄 <strong>Contract:</strong> {result.get("trading_symbol", "N/A")}</p>
-                <p style="margin: 5px 0;">📊 <strong>LTP:</strong> ₹{result.get("buy_price", 0):,.2f}</p>
-                <p style="margin: 5px 0;">💰 <strong>Buy Limit Price:</strong> ₹{result.get("buy_limit_price", 0):,.2f}</p>
-                <p style="margin: 5px 0;">🎯 <strong>Sell Target:</strong> ₹{result.get("sell_target", 0):,.2f} (+{profit_target}%)</p>
-                <p style="margin: 5px 0;">📋 <strong>Buy Order ID:</strong> {result.get("buy_order_id", "N/A")}</p>
-                <p style="margin: 5px 0;">📋 <strong>Sell Order ID:</strong> {result.get("sell_order_id", "N/A")}</p>
+            <div style="background: {success_bg}; padding: 15px; border-radius: 10px; margin: 10px 0; color: {success_text};">
+                <h4 style="margin: 0; color: {success_text};">✅ {result["symbol"]} - SUCCESS</h4>
+                <p style="margin: 5px 0; color: {success_text};">📄 <strong>Contract:</strong> {result.get("trading_symbol", "N/A")}</p>
+                <p style="margin: 5px 0; color: {success_text};">📊 <strong>LTP:</strong> ₹{result.get("buy_price", 0):,.2f}</p>
+                <p style="margin: 5px 0; color: {success_text};">💰 <strong>Buy Limit Price:</strong> ₹{result.get("buy_limit_price", 0):,.2f}</p>
+                <p style="margin: 5px 0; color: {success_text};">🎯 <strong>Sell Target:</strong> ₹{result.get("sell_target", 0):,.2f} (+{profit_target}%)</p>
+                <p style="margin: 5px 0; color: {success_text};">📋 <strong>Buy Order ID:</strong> {result.get("buy_order_id", "N/A")}</p>
+                <p style="margin: 5px 0; color: {success_text};">📋 <strong>Sell Order ID:</strong> {result.get("sell_order_id", "N/A")}</p>
             </div>
             """,
                 unsafe_allow_html=True,
@@ -3128,9 +3162,9 @@ def execute_trades_with_progress(stocks_to_trade, profit_target):
         else:
             st.markdown(
                 f"""
-            <div style="background: #f8d7da; padding: 15px; border-radius: 10px; margin: 10px 0;">
-                <h4 style="margin: 0; color: #721c24;">❌ {result["symbol"]} - {result["status"].upper()}</h4>
-                <p style="margin: 5px 0;">⚠️ <strong>Error:</strong> {result.get("error", "Unknown error")}</p>
+            <div style="background: {error_bg}; padding: 15px; border-radius: 10px; margin: 10px 0; color: {error_text};">
+                <h4 style="margin: 0; color: {error_text};">❌ {result["symbol"]} - {result["status"].upper()}</h4>
+                <p style="margin: 5px 0; color: {error_text};">⚠️ <strong>Error:</strong> {result.get("error", "Unknown error")}</p>
             </div>
             """,
                 unsafe_allow_html=True,
@@ -3162,6 +3196,9 @@ def show_order_book():
     token_manager = TokenManager()
     api = UpstoxAPI(token_manager)
 
+    # Check if dark mode is enabled
+    is_dark = st.session_state.get("dark_mode", False)
+
     with st.spinner("Fetching order book..."):
         orders, error = api.get_order_book()
 
@@ -3185,26 +3222,49 @@ def show_order_book():
             price = order.get("price", 0)
             status = order.get("status", "N/A")
 
-            # Color based on status
-            if status == "complete":
-                bg_color = "#d4edda"
-                status_icon = "✅"
-            elif status == "open":
-                bg_color = "#fff3cd"
-                status_icon = "⏳"
-            elif status == "cancelled":
-                bg_color = "#f8d7da"
-                status_icon = "❌"
+            # Color based on status - dark mode aware
+            if is_dark:
+                if status == "complete":
+                    bg_color = "#1b5e20"
+                    text_color = "#ffffff"
+                    status_icon = "✅"
+                elif status == "open":
+                    bg_color = "#4a3f00"
+                    text_color = "#fff59d"
+                    status_icon = "⏳"
+                elif status == "cancelled":
+                    bg_color = "#b71c1c"
+                    text_color = "#ffffff"
+                    status_icon = "❌"
+                else:
+                    bg_color = "#37474f"
+                    text_color = "#ffffff"
+                    status_icon = "❓"
+                txn_color = "#81c784" if transaction_type == "BUY" else "#e57373"
+                detail_color = "#b0b0b0"
             else:
-                bg_color = "#e2e3e5"
-                status_icon = "❓"
-
-            # Color for BUY/SELL
-            txn_color = "#28a745" if transaction_type == "BUY" else "#dc3545"
+                if status == "complete":
+                    bg_color = "#d4edda"
+                    text_color = "#155724"
+                    status_icon = "✅"
+                elif status == "open":
+                    bg_color = "#fff3cd"
+                    text_color = "#856404"
+                    status_icon = "⏳"
+                elif status == "cancelled":
+                    bg_color = "#f8d7da"
+                    text_color = "#721c24"
+                    status_icon = "❌"
+                else:
+                    bg_color = "#e2e3e5"
+                    text_color = "#383d41"
+                    status_icon = "❓"
+                txn_color = "#28a745" if transaction_type == "BUY" else "#dc3545"
+                detail_color = "#555555"
 
             st.markdown(
                 f"""
-            <div style="background: {bg_color}; padding: 12px; border-radius: 8px; margin: 8px 0; border-left: 4px solid {txn_color};">
+            <div style="background: {bg_color}; padding: 12px; border-radius: 8px; margin: 8px 0; border-left: 4px solid {txn_color}; color: {text_color};">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <div>
                         <strong style="color: {txn_color};">{transaction_type}</strong> | {trading_symbol}
@@ -3213,7 +3273,7 @@ def show_order_book():
                         {status_icon} <strong>{status.upper()}</strong>
                     </div>
                 </div>
-                <div style="margin-top: 8px; font-size: 13px; color: #555;">
+                <div style="margin-top: 8px; font-size: 13px; color: {detail_color};">
                     Qty: {quantity} | Price: ₹{price:,.2f} | Type: {order_type} | ID: {order_id}
                 </div>
             </div>
@@ -3242,6 +3302,9 @@ def show_positions():
 
         st.success(f"📊 Found **{len(positions)}** positions")
 
+        # Check if dark mode is enabled
+        is_dark = st.session_state.get("dark_mode", False)
+
         total_pnl = 0
 
         for pos in positions:
@@ -3253,28 +3316,50 @@ def show_positions():
 
             total_pnl += pnl
 
-            # Color based on P&L
-            if pnl > 0:
-                bg_color = "#d4edda"
-                pnl_color = "#28a745"
-                pnl_icon = "📈"
-            elif pnl < 0:
-                bg_color = "#f8d7da"
-                pnl_color = "#dc3545"
-                pnl_icon = "📉"
+            # Color based on P&L - dark mode aware
+            if is_dark:
+                if pnl > 0:
+                    bg_color = "#1b5e20"
+                    pnl_color = "#81c784"
+                    text_color = "#ffffff"
+                    pnl_icon = "📈"
+                elif pnl < 0:
+                    bg_color = "#b71c1c"
+                    pnl_color = "#e57373"
+                    text_color = "#ffffff"
+                    pnl_icon = "📉"
+                else:
+                    bg_color = "#37474f"
+                    pnl_color = "#b0b0b0"
+                    text_color = "#ffffff"
+                    pnl_icon = "➖"
+                detail_color = "#b0b0b0"
             else:
-                bg_color = "#e2e3e5"
-                pnl_color = "#6c757d"
-                pnl_icon = "➖"
+                if pnl > 0:
+                    bg_color = "#d4edda"
+                    pnl_color = "#28a745"
+                    text_color = "#155724"
+                    pnl_icon = "📈"
+                elif pnl < 0:
+                    bg_color = "#f8d7da"
+                    pnl_color = "#dc3545"
+                    text_color = "#721c24"
+                    pnl_icon = "📉"
+                else:
+                    bg_color = "#e2e3e5"
+                    pnl_color = "#6c757d"
+                    text_color = "#383d41"
+                    pnl_icon = "➖"
+                detail_color = "#555555"
 
             pnl_pct = ((ltp - avg_price) / avg_price * 100) if avg_price > 0 else 0
 
             st.markdown(
                 f"""
-            <div style="background: {bg_color}; padding: 15px; border-radius: 10px; margin: 10px 0;">
+            <div style="background: {bg_color}; padding: 15px; border-radius: 10px; margin: 10px 0; color: {text_color};">
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <div>
-                        <strong style="font-size: 16px;">{trading_symbol}</strong>
+                        <strong style="font-size: 16px; color: {text_color};">{trading_symbol}</strong>
                     </div>
                     <div style="text-align: right;">
                         <span style="font-size: 18px; color: {pnl_color}; font-weight: bold;">
@@ -3282,7 +3367,7 @@ def show_positions():
                         </span>
                     </div>
                 </div>
-                <div style="margin-top: 10px; display: flex; justify-content: space-between; font-size: 13px; color: #555;">
+                <div style="margin-top: 10px; display: flex; justify-content: space-between; font-size: 13px; color: {detail_color};">
                     <span>Qty: {quantity}</span>
                     <span>Avg: ₹{avg_price:,.2f}</span>
                     <span>LTP: ₹{ltp:,.2f}</span>
@@ -3293,7 +3378,7 @@ def show_positions():
             )
 
         # Total P&L
-        total_color = "#28a745" if total_pnl >= 0 else "#dc3545"
+        total_color = "#81c784" if total_pnl >= 0 else "#e57373"
         st.markdown(
             f"""
         <div style="background: linear-gradient(135deg, #1e3a5f, #2d5a87); padding: 15px; border-radius: 10px; margin-top: 15px;">
@@ -3313,112 +3398,148 @@ def inject_custom_css():
     is_dark = st.session_state.get("dark_mode", False)
 
     if is_dark:
-        # Dark Mode CSS
+        # Dark Mode CSS - Complete styling
         st.markdown(
             """
         <style>
-        /* Dark Mode - Main Background */
-        .stApp {
-            background-color: #1a1a2e !important;
-            color: #e0e0e0 !important;
+        /* ==================== DARK MODE ==================== */
+
+        /* Main App Background */
+        .stApp, .main, .block-container {
+            background-color: #0e1117 !important;
+            color: #fafafa !important;
         }
 
-        /* Dark Mode - Sidebar */
+        /* Sidebar */
         [data-testid="stSidebar"] {
-            background-color: #16213e !important;
+            background-color: #1a1a2e !important;
         }
 
         [data-testid="stSidebar"] * {
-            color: #e0e0e0 !important;
+            color: #fafafa !important;
         }
 
-        /* Dark Mode - Headers */
-        h1, h2, h3, h4, h5, h6 {
-            color: #ffffff !important;
+        [data-testid="stSidebar"] .stMarkdown {
+            color: #fafafa !important;
         }
 
-        /* Dark Mode - Text */
-        p, span, div, label {
-            color: #e0e0e0 !important;
+        /* All Text Elements */
+        h1, h2, h3, h4, h5, h6,
+        .stMarkdown, .stMarkdown p, .stMarkdown span,
+        .stText, p, span, label, div {
+            color: #fafafa !important;
         }
 
-        /* Dark Mode - Bullish card styling - Green */
-        .bullish-container {
-            background-color: #1e4620 !important;
-            border-left: 4px solid #4caf50;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-        }
-
-        /* Dark Mode - Bearish card styling - Red */
-        .bearish-container {
-            background-color: #4a1c1c !important;
-            border-left: 4px solid #f44336;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-        }
-
-        /* Dark Mode - Neutral card styling */
-        .neutral-container {
-            background-color: #2d2d44 !important;
-            border-left: 4px solid #9e9e9e;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            border: 1px solid #404040;
-        }
-
-        /* Dark Mode - Expanders */
+        /* Expander Headers */
         .streamlit-expanderHeader {
-            background-color: #2d2d44 !important;
-            color: #e0e0e0 !important;
+            background-color: #262730 !important;
+            color: #fafafa !important;
+            border-radius: 8px;
         }
 
+        .streamlit-expanderHeader p,
+        .streamlit-expanderHeader span,
+        .streamlit-expanderHeader div {
+            color: #fafafa !important;
+        }
+
+        /* Expander Content */
         .streamlit-expanderContent {
             background-color: #1a1a2e !important;
+            color: #fafafa !important;
+            border: 1px solid #333 !important;
         }
 
-        /* Dark Mode - Buttons */
+        .streamlit-expanderContent * {
+            color: #fafafa !important;
+        }
+
+        /* Buttons */
         .stButton > button {
             background-color: #3d5a80 !important;
-            color: white !important;
-            border: none !important;
+            color: #ffffff !important;
+            border: 1px solid #4a6fa5 !important;
         }
 
         .stButton > button:hover {
             background-color: #4a6fa5 !important;
+            border-color: #5a7fb5 !important;
         }
 
-        /* Dark Mode - Input fields */
-        .stTextInput > div > div > input {
-            background-color: #2d2d44 !important;
-            color: #e0e0e0 !important;
+        /* Primary Buttons */
+        .stButton > button[kind="primary"] {
+            background-color: #ff4b4b !important;
+            color: #ffffff !important;
+        }
+
+        /* Input Fields */
+        .stTextInput > div > div > input,
+        .stNumberInput > div > div > input,
+        .stTextArea textarea {
+            background-color: #262730 !important;
+            color: #fafafa !important;
             border: 1px solid #404040 !important;
         }
 
-        .stSelectbox > div > div {
-            background-color: #2d2d44 !important;
-            color: #e0e0e0 !important;
+        /* Select boxes */
+        .stSelectbox > div > div,
+        .stMultiSelect > div > div {
+            background-color: #262730 !important;
+            color: #fafafa !important;
         }
 
-        /* Dark Mode - DataFrames */
-        .dataframe {
-            background-color: #2d2d44 !important;
-            color: #e0e0e0 !important;
+        .stSelectbox [data-baseweb="select"] > div,
+        .stMultiSelect [data-baseweb="select"] > div {
+            background-color: #262730 !important;
+            color: #fafafa !important;
         }
 
-        /* Dark Mode - Tabs */
+        /* Date Input */
+        .stDateInput > div > div > input {
+            background-color: #262730 !important;
+            color: #fafafa !important;
+        }
+
+        /* Checkbox and Toggle */
+        .stCheckbox label span,
+        .stToggle label span {
+            color: #fafafa !important;
+        }
+
+        /* DataFrames and Tables */
+        .dataframe, .stDataFrame {
+            background-color: #262730 !important;
+        }
+
+        .dataframe th, .dataframe td,
+        .stDataFrame th, .stDataFrame td {
+            background-color: #262730 !important;
+            color: #fafafa !important;
+            border-color: #404040 !important;
+        }
+
+        [data-testid="stDataFrame"] * {
+            color: #fafafa !important;
+        }
+
+        /* Tabs */
         .stTabs [data-baseweb="tab-list"] {
-            background-color: #2d2d44 !important;
+            background-color: #1a1a2e !important;
+            gap: 8px;
         }
 
         .stTabs [data-baseweb="tab"] {
-            color: #e0e0e0 !important;
+            background-color: #262730 !important;
+            color: #fafafa !important;
+            border-radius: 8px 8px 0 0;
         }
 
-        /* Dark Mode - Metrics */
+        .stTabs [aria-selected="true"] {
+            background-color: #3d5a80 !important;
+            color: #ffffff !important;
+        }
+
+        /* Metrics */
         [data-testid="stMetricValue"] {
             color: #ffffff !important;
         }
@@ -3427,66 +3548,178 @@ def inject_custom_css():
             color: #b0b0b0 !important;
         }
 
-        /* Dark Mode - Info/Warning/Error boxes */
+        [data-testid="stMetricDelta"] svg {
+            fill: currentColor !important;
+        }
+
+        /* Info/Warning/Error/Success boxes */
         .stAlert {
-            background-color: #2d2d44 !important;
+            background-color: #262730 !important;
+            color: #fafafa !important;
         }
 
-        /* Dark Mode - Stock metrics */
-        .stock-metrics-green {
+        .stAlert > div {
+            color: #fafafa !important;
+        }
+
+        /* Success message */
+        .stSuccess, .element-container .stAlert[data-baseweb="notification"]:has([data-testid="stNotificationSuccess"]) {
             background-color: #1e4620 !important;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #4caf50;
-            margin: 10px 0;
-            color: #e0e0e0 !important;
+            color: #a5d6a7 !important;
         }
 
-        .stock-metrics-red {
+        /* Warning message */
+        .stWarning {
+            background-color: #4a3f00 !important;
+            color: #fff59d !important;
+        }
+
+        /* Error message */
+        .stError {
             background-color: #4a1c1c !important;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #f44336;
-            margin: 10px 0;
-            color: #e0e0e0 !important;
+            color: #ef9a9a !important;
         }
 
-        .stock-metrics-white {
-            background-color: #2d2d44 !important;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #9e9e9e;
-            border: 1px solid #404040;
-            margin: 10px 0;
-            color: #e0e0e0 !important;
+        /* Info message */
+        .stInfo {
+            background-color: #1a3a5c !important;
+            color: #90caf9 !important;
         }
 
-        /* Dark Mode - Positive/Negative colors */
-        .positive {
-            color: #4caf50 !important;
+        /* Caption text */
+        .stCaption, small {
+            color: #b0b0b0 !important;
         }
 
-        .negative {
-            color: #f44336 !important;
+        /* Code blocks */
+        code, .stCodeBlock {
+            background-color: #262730 !important;
+            color: #fafafa !important;
         }
 
-        /* Dark Mode - Links */
-        a {
+        /* Progress bar */
+        .stProgress > div > div {
+            background-color: #404040 !important;
+        }
+
+        /* Spinner */
+        .stSpinner > div {
+            border-top-color: #3d5a80 !important;
+        }
+
+        /* Divider / Horizontal Rule */
+        hr {
+            border-color: #404040 !important;
+        }
+
+        /* Links */
+        a, a:visited {
             color: #64b5f6 !important;
         }
 
-        /* Dark Mode - Column headers */
+        a:hover {
+            color: #90caf9 !important;
+        }
+
+        /* ==================== CUSTOM CARD STYLES - DARK ==================== */
+
+        /* Bullish cards - Dark Green */
+        .stock-metrics-green,
+        div[style*="background-color: #d4edda"],
+        div[style*="background: #d4edda"] {
+            background-color: #1b5e20 !important;
+            color: #ffffff !important;
+        }
+
+        div[style*="background-color: #28a745"],
+        div[style*="background: #28a745"] {
+            background-color: #2e7d32 !important;
+            color: #ffffff !important;
+        }
+
+        /* Bearish cards - Dark Red */
+        .stock-metrics-red,
+        div[style*="background-color: #f8d7da"],
+        div[style*="background: #f8d7da"] {
+            background-color: #b71c1c !important;
+            color: #ffffff !important;
+        }
+
+        div[style*="background-color: #dc3545"],
+        div[style*="background: #dc3545"] {
+            background-color: #c62828 !important;
+            color: #ffffff !important;
+        }
+
+        /* Neutral cards - Dark Gray */
+        .stock-metrics-white,
+        div[style*="background-color: #f8f9fa"],
+        div[style*="background: #f8f9fa"],
+        div[style*="background-color: #ffffff"],
+        div[style*="background: #ffffff"] {
+            background-color: #262730 !important;
+            color: #fafafa !important;
+        }
+
+        /* Yellow/Warning cards */
+        div[style*="background-color: #fff3cd"],
+        div[style*="background: #fff3cd"] {
+            background-color: #4a3f00 !important;
+            color: #fff59d !important;
+        }
+
+        /* Blue/Info cards */
+        div[style*="background-color: #d1ecf1"],
+        div[style*="background: #d1ecf1"] {
+            background-color: #1a3a5c !important;
+            color: #90caf9 !important;
+        }
+
+        /* All nested text in cards */
+        div[style*="background"] p,
+        div[style*="background"] span,
+        div[style*="background"] strong,
+        div[style*="background"] h4,
+        div[style*="background"] div {
+            color: inherit !important;
+        }
+
+        /* Positive values */
+        .positive, [style*="color: #28a745"], [style*="color:#28a745"],
+        [style*="color: #155724"], [style*="color:#155724"] {
+            color: #81c784 !important;
+        }
+
+        /* Negative values */
+        .negative, [style*="color: #dc3545"], [style*="color:#dc3545"],
+        [style*="color: #721c24"], [style*="color:#721c24"] {
+            color: #e57373 !important;
+        }
+
+        /* Column headers */
         .column-header-bullish {
-            color: #4caf50 !important;
+            color: #81c784 !important;
         }
 
         .column-header-bearish {
-            color: #f44336 !important;
+            color: #e57373 !important;
         }
 
         .column-header-neutral {
-            color: #9e9e9e !important;
+            color: #b0b0b0 !important;
         }
+
+        /* Toast notifications */
+        [data-testid="stToast"] {
+            background-color: #262730 !important;
+            color: #fafafa !important;
+        }
+
+        /* Plotly charts */
+        .js-plotly-plot .plotly .main-svg {
+            background-color: #0e1117 !important;
+        }
+
         </style>
         """,
             unsafe_allow_html=True,
@@ -3965,32 +4198,60 @@ def screening_page():
         )
         st.caption(f"📅 Last Refreshed: {last_refresh_str}")
 
-    # Auto-refresh every 10 seconds (only if we have data)
+    # Auto-refresh every 10 seconds (silent background refresh)
+    # Data updates without page reload or white screen
     if (
         auto_refresh
         and st.session_state.last_refresh_time
         and st.session_state.stock_list_data
     ):
+        time_since_refresh = (
+            datetime.now() - st.session_state.last_refresh_time
+        ).total_seconds()
+
         try:
             from streamlit_autorefresh import st_autorefresh
 
-            # Refresh every AUTO_REFRESH_INTERVAL seconds (10000 ms = 10 seconds)
+            # st_autorefresh handles timing - Streamlit reruns smoothly without white flash
             count = st_autorefresh(
                 interval=AUTO_REFRESH_INTERVAL * 1000,
                 limit=None,
                 key="data_refresh_timer",
             )
+
+            # When it's time to refresh, update data
             if count > 0:
-                # Trigger background refresh
-                st.session_state.background_refresh = True
+                # Refresh data silently (no spinner to avoid flash)
+                results = background_refresh_data(
+                    stock_list,
+                    api,
+                    use_live_data,
+                    intraday_interval,
+                    st.session_state.use_mock_data,
+                )
+                if results:
+                    st.session_state.stock_list_data = results
+                    st.session_state.last_refresh_time = datetime.now()
         except ImportError:
-            # Fallback: Check time and trigger rerun (without blocking sleep)
-            time_since_refresh = (
-                datetime.now() - st.session_state.last_refresh_time
-            ).total_seconds()
-            if time_since_refresh >= AUTO_REFRESH_INTERVAL:
-                st.session_state.background_refresh = True
-                st.rerun()
+            # Without streamlit-autorefresh, we can't do smooth background refresh
+            # Show instruction to install
+            st.info(
+                "💡 For smooth auto-refresh without screen flash, install: `pip install streamlit-autorefresh`"
+            )
+
+            # Add manual refresh button as fallback
+            if st.button("🔄 Refresh Now", key="manual_refresh_btn"):
+                results = background_refresh_data(
+                    stock_list,
+                    api,
+                    use_live_data,
+                    intraday_interval,
+                    st.session_state.use_mock_data,
+                )
+                if results:
+                    st.session_state.stock_list_data = results
+                    st.session_state.last_refresh_time = datetime.now()
+                    st.rerun()
 
     # Results header
     st.markdown("## Results 🔗")
