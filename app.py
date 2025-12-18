@@ -1869,6 +1869,8 @@ class UpstoxAPI:
 
         except Exception as e:
             return None, str(e)[:50]
+
+    def get_option_contracts(self, instrument_key, expiry_date=None):
         """
         Fetch option contracts for an underlying symbol
 
@@ -4686,7 +4688,7 @@ def screening_page():
         dropdown_text = "#333333"
         dropdown_border = "#dadce0"
 
-    # Custom CSS for profile dropdown (Gmail-style in top right)
+    # Simple CSS for dark mode header (removed fixed profile dropdown to avoid layout issues on hosted Streamlit)
     st.markdown(
         f"""
     <style>
@@ -4694,143 +4696,7 @@ def screening_page():
     header[data-testid="stHeader"] {{
         background-color: {"#0e1117" if is_dark else "#ffffff"} !important;
     }}
-
-    /* Profile container - fixed to top right */
-    .profile-container {{
-        position: fixed;
-        top: 14px;
-        right: 20px;
-        z-index: 999999;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }}
-
-    /* Profile avatar circle */
-    .profile-avatar {{
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        background-color: {avatar_bg};
-        color: white;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 18px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: box-shadow 0.2s;
-    }}
-
-    .profile-avatar:hover {{
-        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-    }}
-
-    /* Dropdown menu */
-    .profile-dropdown {{
-        display: none;
-        position: absolute;
-        top: 50px;
-        right: 0;
-        background-color: {dropdown_bg};
-        border: 1px solid {dropdown_border};
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        min-width: 280px;
-        padding: 0;
-        z-index: 1000000;
-    }}
-
-    .profile-container:hover .profile-dropdown {{
-        display: block;
-    }}
-
-    .profile-header {{
-        padding: 20px;
-        text-align: center;
-        border-bottom: 1px solid {dropdown_border};
-    }}
-
-    .profile-header-avatar {{
-        width: 60px;
-        height: 60px;
-        border-radius: 50%;
-        background-color: {avatar_bg};
-        color: white;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 28px;
-        font-weight: 600;
-        margin: 0 auto 10px;
-    }}
-
-    .profile-name {{
-        font-size: 16px;
-        font-weight: 600;
-        color: {dropdown_text};
-        margin: 5px 0;
-    }}
-
-    .profile-email {{
-        font-size: 13px;
-        color: {"#888888" if is_dark else "#666666"};
-    }}
-
-    .profile-role {{
-        display: inline-block;
-        padding: 3px 10px;
-        border-radius: 12px;
-        font-size: 11px;
-        margin-top: 8px;
-        background-color: {"#1b5e20" if user_role == "admin" else "#3d5a80"};
-        color: white;
-    }}
-
-    .profile-menu-item {{
-        display: block;
-        padding: 12px 20px;
-        color: {dropdown_text};
-        text-decoration: none;
-        font-size: 14px;
-        cursor: pointer;
-        transition: background-color 0.2s;
-    }}
-
-    .profile-menu-item:hover {{
-        background-color: {"#3d5a80" if is_dark else "#f1f3f4"};
-    }}
-
-    .profile-menu-divider {{
-        height: 1px;
-        background-color: {dropdown_border};
-        margin: 5px 0;
-    }}
-
-    .profile-menu-item.logout {{
-        color: #e57373;
-    }}
     </style>
-
-    <!-- Profile Avatar in Top Right -->
-    <div class="profile-container">
-        <div class="profile-avatar">{user_initial}</div>
-        <div class="profile-dropdown">
-            <div class="profile-header">
-                <div class="profile-header-avatar">{user_initial}</div>
-                <div class="profile-name">{user_name}</div>
-                <div class="profile-email">{user_email}</div>
-                <div class="profile-role">{"👑 Admin" if user_role == "admin" else "👤 User"}</div>
-            </div>
-            <div style="padding: 8px 0;">
-                <div class="profile-menu-item" onclick="window.location.href='?page=profile'">👤 My Profile</div>
-                {('<div class="profile-menu-item">👥 User Management</div>') if user_role == "admin" else ""}
-                <div class="profile-menu-item">🔐 Token Management</div>
-                <div class="profile-menu-divider"></div>
-                <div class="profile-menu-item logout">🚪 Logout</div>
-            </div>
-        </div>
-    </div>
     """,
         unsafe_allow_html=True,
     )
