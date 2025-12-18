@@ -4928,7 +4928,7 @@ def screening_page():
     # Auto-refresh toggle with interval control
     st.sidebar.subheader("🔄 Auto Refresh")
     auto_refresh = st.sidebar.checkbox(
-        "Enable Auto Refresh", value=False, key="auto_refresh_toggle"
+        "Enable Auto Refresh", value=True, key="auto_refresh_toggle"
     )
 
     if auto_refresh:
@@ -4937,16 +4937,15 @@ def screening_page():
             "Refresh Interval (seconds)",
             min_value=10,
             max_value=120,
-            value=30,  # Default 30 seconds
+            value=10,  # Default 10 seconds
             step=10,
             key="refresh_interval_slider",
         )
         # Store in session state for use in refresh logic
         st.session_state.refresh_interval = refresh_interval
         st.sidebar.info(f"⏱️ Auto-refreshing every {refresh_interval} seconds")
-        st.sidebar.caption("💡 Higher interval = less screen flicker")
     else:
-        st.sidebar.caption("🔘 Manual refresh only - use button below")
+        st.sidebar.caption("🔘 Manual refresh only - use 🔄 button")
         st.session_state.refresh_interval = 0
 
     st.sidebar.markdown("---")
@@ -5066,6 +5065,9 @@ def screening_page():
             unsafe_allow_html=True,
         )
 
+        # Initialize time tracking
+        time_since_refresh = 0
+
         # Check if it's time to refresh data
         if st.session_state.last_refresh_time:
             time_since_refresh = (
@@ -5086,25 +5088,18 @@ def screening_page():
                 if results:
                     st.session_state.stock_list_data = results
                     st.session_state.last_refresh_time = datetime.now(IST)
+                    time_since_refresh = 0  # Reset after refresh
 
-        # Use streamlit-autorefresh for smooth timed refresh
-        try:
-            from streamlit_autorefresh import st_autorefresh
+        # Show countdown to next refresh (informational only)
+        time_until_refresh = max(0, refresh_interval - time_since_refresh)
+        st.caption(f"⏳ Next auto-refresh in ~{int(time_until_refresh)} seconds")
 
-            # This component handles the refresh timing smoothly
-            st_autorefresh(
-                interval=refresh_interval * 1000,
-                limit=None,
-                key="smooth_data_refresh",
-            )
-        except ImportError:
-            # Fallback: Use meta refresh (less smooth but functional)
-            st.markdown(
-                f"""
-                <meta http-equiv="refresh" content="{refresh_interval}">
-                """,
-                unsafe_allow_html=True,
-            )
+        # Simple meta refresh - only triggers after interval
+        # The anti-flash CSS above minimizes the white screen
+        st.markdown(
+            f'<meta http-equiv="refresh" content="{refresh_interval}">',
+            unsafe_allow_html=True,
+        )
 
     # Results header with manual refresh button
     results_col1, results_col2 = st.columns([4, 1])
