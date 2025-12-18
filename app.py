@@ -4905,10 +4905,27 @@ def screening_page():
         st.session_state.dark_mode = not st.session_state.dark_mode
         st.rerun()
 
-    if st.sidebar.button(
-        "🚪 Logout", key="logout_btn_side", width="stretch", type="secondary"
-    ):
-        logout_user()
+    # Logout with confirmation
+    if "confirm_logout" not in st.session_state:
+        st.session_state.confirm_logout = False
+
+    if not st.session_state.confirm_logout:
+        if st.sidebar.button(
+            "🚪 Logout", key="logout_btn_side", width="stretch", type="secondary"
+        ):
+            st.session_state.confirm_logout = True
+            st.rerun()
+    else:
+        st.sidebar.warning("⚠️ Are you sure you want to logout?")
+        col_yes, col_no = st.sidebar.columns(2)
+        with col_yes:
+            if st.button("Yes", key="confirm_logout_yes", type="primary"):
+                st.session_state.confirm_logout = False
+                logout_user()
+        with col_no:
+            if st.button("No", key="confirm_logout_no"):
+                st.session_state.confirm_logout = False
+                st.rerun()
 
     st.sidebar.markdown("---")
 
@@ -4928,7 +4945,7 @@ def screening_page():
     # Auto-refresh toggle with interval control
     st.sidebar.subheader("🔄 Auto Refresh")
     auto_refresh = st.sidebar.checkbox(
-        "Enable Auto Refresh", value=True, key="auto_refresh_toggle"
+        "Enable Auto Refresh", value=False, key="auto_refresh_toggle"
     )
 
     if auto_refresh:
@@ -4937,16 +4954,30 @@ def screening_page():
             "Refresh Interval (seconds)",
             min_value=10,
             max_value=120,
-            value=10,  # Default 10 seconds
+            value=30,  # Default 30 seconds
             step=10,
             key="refresh_interval_slider",
         )
         # Store in session state for use in refresh logic
         st.session_state.refresh_interval = refresh_interval
-        st.sidebar.info(f"⏱️ Auto-refreshing every {refresh_interval} seconds")
+        st.sidebar.warning(
+            f"⚠️ Auto-refresh every {refresh_interval}s (may cause flicker)"
+        )
     else:
-        st.sidebar.caption("🔘 Manual refresh only - use 🔄 button")
+        st.sidebar.success("✅ Manual refresh mode")
         st.session_state.refresh_interval = 0
+
+    # Manual Refresh Button in Sidebar (always visible)
+    # Uses session state flag to trigger refresh after variables are loaded
+    if st.sidebar.button(
+        "🔄 Refresh Data Now",
+        key="sidebar_refresh_btn",
+        type="primary",
+        use_container_width=True,
+    ):
+        st.session_state.force_refresh = True
+        st.session_state.stock_list_data = []  # Clear to trigger refresh
+        st.rerun()
 
     st.sidebar.markdown("---")
     if st.sidebar.button("📋 Reload Stock List", width="stretch"):
@@ -4978,12 +5009,6 @@ def screening_page():
     st.sidebar.info(f"📊 Total Stocks: {len(stock_list)}")
 
     st.sidebar.markdown("---")
-    if st.sidebar.button(
-        "🚀 Fetch Current Data (All Stocks)", type="primary", width="stretch"
-    ):
-        st.session_state.force_refresh = True
-        st.session_state.stock_list_data = []
-        st.rerun()
 
     # Handle background refresh (from auto-refresh) - update data silently
     if st.session_state.get("background_refresh", False):
@@ -5043,7 +5068,7 @@ def screening_page():
         st.caption(f"📅 Last Refreshed: {last_refresh_str}")
 
     # Auto-refresh with anti-flash CSS
-    # The key is to set background color during refresh to prevent white flash
+    # Uses JavaScript-based refresh that preserves session state
     refresh_interval = st.session_state.get("refresh_interval", AUTO_REFRESH_INTERVAL)
 
     if auto_refresh and st.session_state.stock_list_data and refresh_interval > 0:
@@ -5090,14 +5115,41 @@ def screening_page():
                     st.session_state.last_refresh_time = datetime.now(IST)
                     time_since_refresh = 0  # Reset after refresh
 
-        # Show countdown to next refresh (informational only)
+        # Show countdown to next refresh
         time_until_refresh = max(0, refresh_interval - time_since_refresh)
         st.caption(f"⏳ Next auto-refresh in ~{int(time_until_refresh)} seconds")
 
-        # Simple meta refresh - only triggers after interval
-        # The anti-flash CSS above minimizes the white screen
+        # JavaScript-based auto-refresh using Streamlit's internal mechanism
+        # This method clicks a hidden element to trigger rerun without full page reload
         st.markdown(
-            f'<meta http-equiv="refresh" content="{refresh_interval}">',
+            f"""
+            <script>
+                (function() {{
+                    // Clear any existing timer
+                    if (window.stAutoRefreshTimer) {{
+                        clearInterval(window.stAutoRefreshTimer);
+                    }}
+
+                    // Set up auto-refresh timer
+                    window.stAutoRefreshTimer = setInterval(function() {{
+                        // Find and click the refresh button or trigger Streamlit rerun
+                        const refreshBtn = window.parent.document.querySelector('[data-testid="baseButton-secondary"]');
+                        if (refreshBtn && refreshBtn.innerText.includes('Refresh')) {{
+                            refreshBtn.click();
+                        }} else {{
+                            // Fallback: trigger form submission to cause rerun
+                            const forms = window.parent.document.querySelectorAll('form');
+                            if (forms.length > 0) {{
+                                // Simulate interaction to trigger Streamlit rerun
+                                window.parent.document.dispatchEvent(new Event('streamlit:rerun'));
+                            }}
+                        }}
+                    }}, {refresh_interval * 1000});
+
+                    console.log('Auto-refresh enabled: {refresh_interval}s interval');
+                }})();
+            </script>
+            """,
             unsafe_allow_html=True,
         )
 
@@ -6175,6 +6227,18 @@ def main():
         st.error("❌ Database initialization failed")
         st.stop()
         return
+
+    # Session state protection - ensure login state persists
+    # This prevents accidental logout due to widget interactions
+    if "session_initialized" not in st.session_state:
+        st.session_state.session_initialized = True
+
+    # Double-check: If logged_in_user exists but user_logged_in is False, restore it
+    if (
+        st.session_state.logged_in_user is not None
+        and not st.session_state.user_logged_in
+    ):
+        st.session_state.user_logged_in = True
 
     # Check if user is logged in first
     if not st.session_state.user_logged_in:
