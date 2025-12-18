@@ -6276,7 +6276,7 @@ def login_page():
     # Check dark mode
     is_dark = st.session_state.get("dark_mode", True)  # Default to dark
 
-    # Apply theme with full styling for dark mode
+    # Apply theme with full styling for dark mode - ENHANCED VISIBILITY
     if is_dark:
         st.markdown(
             """
@@ -6286,48 +6286,76 @@ def login_page():
             background-color: #0e1117 !important;
         }
 
-        /* All text white */
-        h1, h2, h3, h4, h5, h6, p, span, label, div {
+        /* All text white - LARGER FONTS */
+        h1, h2, h3, h4, h5, h6 {
             color: #fafafa !important;
         }
 
-        /* Input fields - comprehensive styling */
+        p, span, label, div {
+            color: #fafafa !important;
+            font-size: 16px !important;
+        }
+
+        /* Input fields - MUCH LARGER */
         .stTextInput > div > div > input,
         input[type="text"],
         input[type="email"],
         input[type="password"] {
-            background-color: #262730 !important;
+            background-color: #1e2130 !important;
             color: #ffffff !important;
-            border: 1px solid #404040 !important;
+            border: 2px solid #404040 !important;
+            border-radius: 10px !important;
             caret-color: #ffffff !important;
+            font-size: 18px !important;
+            padding: 15px 20px !important;
+            height: 55px !important;
         }
 
-        /* Placeholder text */
+        /* Input focus state */
+        .stTextInput > div > div > input:focus,
+        input[type="text"]:focus,
+        input[type="email"]:focus,
+        input[type="password"]:focus {
+            border: 2px solid #4da6ff !important;
+            box-shadow: 0 0 10px rgba(77, 166, 255, 0.3) !important;
+        }
+
+        /* Placeholder text - LARGER */
         .stTextInput > div > div > input::placeholder,
         input::placeholder {
             color: #888888 !important;
             opacity: 1 !important;
+            font-size: 16px !important;
         }
 
-        /* Input labels */
+        /* Input labels - LARGER */
         .stTextInput > label {
             color: #fafafa !important;
+            font-size: 18px !important;
+            font-weight: 600 !important;
+            margin-bottom: 8px !important;
         }
 
-        /* Form labels */
+        /* Form labels - LARGER */
         .stForm label, .stTextInput label {
             color: #fafafa !important;
+            font-size: 18px !important;
+            font-weight: 600 !important;
         }
 
         /* Form input fields */
         [data-testid="stForm"] input {
-            background-color: #262730 !important;
+            background-color: #1e2130 !important;
             color: #ffffff !important;
-            border: 1px solid #404040 !important;
+            border: 2px solid #404040 !important;
+            font-size: 18px !important;
+            padding: 15px 20px !important;
+            height: 55px !important;
         }
 
         [data-testid="stForm"] input::placeholder {
             color: #888888 !important;
+            font-size: 16px !important;
         }
 
         /* Markdown text */
@@ -6338,11 +6366,37 @@ def login_page():
         /* Divider */
         hr {
             border-color: #404040 !important;
+            margin: 25px 0 !important;
         }
 
-        /* Buttons */
-        .stButton > button {
+        /* Buttons - LARGER */
+        .stButton > button,
+        .stFormSubmitButton > button {
             color: #ffffff !important;
+            font-size: 18px !important;
+            font-weight: 600 !important;
+            padding: 15px 30px !important;
+            height: 55px !important;
+            border-radius: 10px !important;
+        }
+
+        /* Primary button styling */
+        .stButton > button[kind="primary"],
+        .stFormSubmitButton > button[kind="primary"] {
+            background-color: #ff4b4b !important;
+            border: none !important;
+        }
+
+        .stButton > button[kind="primary"]:hover,
+        .stFormSubmitButton > button[kind="primary"]:hover {
+            background-color: #ff6b6b !important;
+        }
+
+        /* Warning/Error/Success messages - LARGER */
+        .stAlert {
+            font-size: 16px !important;
+            padding: 15px 20px !important;
+            border-radius: 10px !important;
         }
         </style>
         """,
@@ -6351,22 +6405,95 @@ def login_page():
         title_color = "#ffffff"
         subtitle_color = "#b0b0b0"
     else:
+        # Light mode styling - ENHANCED VISIBILITY
+        st.markdown(
+            """
+        <style>
+        /* Light Mode - Login Page */
+        .stApp {
+            background-color: #ffffff !important;
+        }
+
+        p, span, label, div {
+            font-size: 16px !important;
+        }
+
+        /* Input fields - MUCH LARGER */
+        .stTextInput > div > div > input,
+        input[type="text"],
+        input[type="email"],
+        input[type="password"] {
+            background-color: #f8f9fa !important;
+            color: #333333 !important;
+            border: 2px solid #dee2e6 !important;
+            border-radius: 10px !important;
+            font-size: 18px !important;
+            padding: 15px 20px !important;
+            height: 55px !important;
+        }
+
+        /* Input focus state */
+        .stTextInput > div > div > input:focus,
+        input[type="text"]:focus,
+        input[type="email"]:focus,
+        input[type="password"]:focus {
+            border: 2px solid #4da6ff !important;
+            box-shadow: 0 0 10px rgba(77, 166, 255, 0.3) !important;
+        }
+
+        /* Placeholder text - LARGER */
+        .stTextInput > div > div > input::placeholder,
+        input::placeholder {
+            color: #888888 !important;
+            font-size: 16px !important;
+        }
+
+        /* Input labels - LARGER */
+        .stTextInput > label,
+        .stForm label, .stTextInput label {
+            font-size: 18px !important;
+            font-weight: 600 !important;
+            margin-bottom: 8px !important;
+        }
+
+        /* Buttons - LARGER */
+        .stButton > button,
+        .stFormSubmitButton > button {
+            font-size: 18px !important;
+            font-weight: 600 !important;
+            padding: 15px 30px !important;
+            height: 55px !important;
+            border-radius: 10px !important;
+        }
+
+        /* Warning/Error/Success messages - LARGER */
+        .stAlert {
+            font-size: 16px !important;
+            padding: 15px 20px !important;
+            border-radius: 10px !important;
+        }
+        </style>
+        """,
+            unsafe_allow_html=True,
+        )
         title_color = "#333333"
         subtitle_color = "#666666"
 
-    # Center the login form
-    col1, col2, col3 = st.columns([1, 2, 1])
+    # Center the login form - wider column
+    col1, col2, col3 = st.columns([1, 3, 1])
 
     with col2:
         st.markdown("")
         st.markdown("")
+        st.markdown("")
 
-        # Logo and title with proper colors
+        # Logo and title with proper colors - LARGER
         st.markdown(
             f"""
-        <div style="text-align: center; padding: 20px;">
-            <h1 style="margin: 0; color: {title_color};">📈 Stock Screener</h1>
-            <p style="color: {subtitle_color}; margin-top: 10px;">Ichimoku & MACD Analysis Platform</p>
+        <div style="text-align: center; padding: 30px;">
+            <div style="font-size: 80px; margin-bottom: 20px;">📈</div>
+            <h1 style="margin: 0; color: {title_color}; font-size: 42px; font-weight: 700;">Stock Screener</h1>
+            <p style="color: {subtitle_color}; margin-top: 15px; font-size: 20px;">Ichimoku & MACD Analysis Platform</p>
         </div>
         """,
             unsafe_allow_html=True,
@@ -6374,26 +6501,39 @@ def login_page():
 
         st.markdown("---")
 
-        # Login form title with color
+        # Login form title with color - LARGER
         st.markdown(
-            f"<h3 style='color: {title_color};'>🔐 Login</h3>", unsafe_allow_html=True
+            f"<h2 style='color: {title_color}; text-align: center; font-size: 28px;'>🔐 Login</h2>",
+            unsafe_allow_html=True,
         )
 
+        st.markdown("<br>", unsafe_allow_html=True)
+
         with st.form("login_form"):
-            email = st.text_input("📧 Email", placeholder="Enter your email")
+            # Add spacing between fields
+            st.markdown(
+                "<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True
+            )
+            email = st.text_input("📧 Email", placeholder="Enter your email address")
+
+            st.markdown(
+                "<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True
+            )
             password = st.text_input(
                 "🔑 Password", type="password", placeholder="Enter your password"
             )
 
+            st.markdown("<br>", unsafe_allow_html=True)
+
             col_btn1, col_btn2 = st.columns(2)
             with col_btn1:
                 submit = st.form_submit_button(
-                    "🚀 Login", type="primary", width="stretch"
+                    "🚀 Login", type="primary", use_container_width=True
                 )
             with col_btn2:
                 # Dark mode toggle in login
                 dark_toggle = st.form_submit_button(
-                    "🌙 Dark Mode" if not is_dark else "☀️ Light Mode", width="stretch"
+                    "🌙 Dark" if not is_dark else "☀️ Light", use_container_width=True
                 )
 
             if dark_toggle:
@@ -6457,13 +6597,13 @@ def login_page():
 
         st.markdown("---")
 
-        # Footer with proper colors
+        # Footer with proper colors - LARGER TEXT
         footer_color = "#b0b0b0" if is_dark else "#888888"
         st.markdown(
             f"""
-        <div style="text-align: center; color: {footer_color}; font-size: 12px; padding: 20px;">
-            <p style="color: {footer_color};">🔒 Secure Login | Only authorized users can access</p>
-            <p style="color: {footer_color};">Contact admin for access</p>
+        <div style="text-align: center; color: {footer_color}; padding: 30px;">
+            <p style="color: {footer_color}; font-size: 16px; margin-bottom: 10px;">🔒 Secure Login | Only authorized users can access</p>
+            <p style="color: {footer_color}; font-size: 14px;">Contact admin for access</p>
         </div>
         """,
             unsafe_allow_html=True,
