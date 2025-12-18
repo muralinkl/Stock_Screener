@@ -1,18 +1,3 @@
-"""
-Stock Screener Application - UI Matching Original Design
-=========================================================
-
-Features:
-- Three-column layout (Bullish/Bearish/Neutral)
-- Expandable stock cards with detailed metrics
-- MACD Histogram 5-day differences
-- Detailed analysis page with charts
-- Auto-refresh functionality
-
-Author: Redesigned version
-Date: 2024-12-11
-"""
-
 import os
 import random
 import sqlite3
@@ -89,8 +74,12 @@ DEFAULT_BUY_BUFFER_PCT = 0.2  # Buffer above LTP for buy limit orders (0.2%)
 # Session State Initialization
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
+if "user_logged_in" not in st.session_state:
+    st.session_state.user_logged_in = False
+if "logged_in_user" not in st.session_state:
+    st.session_state.logged_in_user = None
 if "page" not in st.session_state:
-    st.session_state.page = "auth"
+    st.session_state.page = "login"  # Start with login page
 if "selected_symbol" not in st.session_state:
     st.session_state.selected_symbol = None
 if "selected_stock_data" not in st.session_state:
@@ -106,7 +95,7 @@ if "use_mock_data" not in st.session_state:
 if "expand_mode" not in st.session_state:
     st.session_state.expand_mode = "none"  # none, all, bullish, bearish
 if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = False  # Default to light mode
+    st.session_state.dark_mode = True  # Default to dark mode
 
 # Sample Stock List (NSE FO Stocks) - 211 Stocks
 STOCK_LIST = [
@@ -1398,10 +1387,58 @@ def init_db(db_name=DB_NAME):
             CREATE TABLE IF NOT EXISTS api_tokens (
                 id INTEGER PRIMARY KEY, access_token TEXT, refresh_token TEXT, expires_at TEXT, created_at TEXT
             )""")
+            c.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                role TEXT DEFAULT 'user',
+                is_active INTEGER DEFAULT 1,
+                created_at TEXT,
+                last_login TEXT
+            )""")
             c.execute(
                 "CREATE INDEX IF NOT EXISTS idx_daily_prices_symbol_date ON daily_prices(symbol, date)"
             )
             conn.commit()
+
+            # Check if role column exists (for existing databases)
+            c.execute("PRAGMA table_info(users)")
+            columns = [col[1] for col in c.fetchall()]
+            if "role" not in columns:
+                c.execute("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'")
+                conn.commit()
+
+            # Insert default admin user if not exists
+            c.execute(
+                "SELECT COUNT(*) FROM users WHERE email = ?", ("muralinkl@gmail.com",)
+            )
+            if c.fetchone()[0] == 0:
+                # Default password is "murali123" - you should change this
+                import hashlib
+
+                default_password = hashlib.sha256("murali123".encode()).hexdigest()
+                c.execute(
+                    """
+                    INSERT INTO users (name, email, password, role, is_active, created_at)
+                    VALUES (?, ?, ?, 'admin', 1, ?)
+                """,
+                    (
+                        "Murali",
+                        "muralinkl@gmail.com",
+                        default_password,
+                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    ),
+                )
+                conn.commit()
+            else:
+                # Update existing user to admin if not already
+                c.execute(
+                    "UPDATE users SET role = 'admin' WHERE email = ? AND (role IS NULL OR role = 'user')",
+                    ("muralinkl@gmail.com",),
+                )
+                conn.commit()
 
             # Always insert/update all stocks from STOCK_LIST
             # This ensures new stocks are added when the list is updated
@@ -3406,6 +3443,65 @@ def inject_custom_css():
         <style>
         /* ==================== DARK MODE ==================== */
 
+        /* Hide Streamlit header completely (removes Deploy button and M initial) */
+        header[data-testid="stHeader"] {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            position: absolute !important;
+            top: -1000px !important;
+        }
+
+        /* Hide main menu button */
+        #MainMenu {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        /* Hide footer */
+        footer {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        /* Hide deploy button */
+        .stDeployButton {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        /* Hide toolbar */
+        [data-testid="stToolbar"] {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        /* Hide the top-right buttons container */
+        .stApp header {
+            display: none !important;
+        }
+
+        /* Hide Streamlit Cloud avatar/profile button */
+        [data-testid="stAppViewerModeButton"],
+        [data-testid="stStatusWidget"],
+        [data-testid="stDecoration"],
+        .viewerBadge_container__1QSob,
+        .viewerBadge_link__1S137,
+        #stDecoration,
+        button[kind="header"] {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        /* Hide any remaining header elements */
+        .stApp > header,
+        div[data-testid="stHeader"],
+        section[data-testid="stHeader"] {
+            display: none !important;
+            height: 0 !important;
+            visibility: hidden !important;
+        }
+
         /* Main App Background */
         .stApp, .main, .block-container {
             background-color: #0e1117 !important;
@@ -3474,32 +3570,104 @@ def inject_custom_css():
             color: #ffffff !important;
         }
 
-        /* Input Fields */
+        /* Input Fields - Comprehensive Styling */
         .stTextInput > div > div > input,
         .stNumberInput > div > div > input,
         .stTextArea textarea {
             background-color: #262730 !important;
-            color: #fafafa !important;
+            color: #ffffff !important;
             border: 1px solid #404040 !important;
+            caret-color: #ffffff !important;
+        }
+
+        /* Input placeholder text */
+        .stTextInput > div > div > input::placeholder,
+        .stNumberInput > div > div > input::placeholder,
+        .stTextArea textarea::placeholder {
+            color: #888888 !important;
+            opacity: 1 !important;
+        }
+
+        /* Input labels */
+        .stTextInput > label,
+        .stNumberInput > label,
+        .stTextArea > label,
+        .stSelectbox > label,
+        .stMultiSelect > label,
+        .stDateInput > label,
+        .stSlider > label {
+            color: #fafafa !important;
+        }
+
+        /* Form inputs inside forms */
+        [data-testid="stForm"] input,
+        [data-testid="stForm"] textarea {
+            background-color: #262730 !important;
+            color: #ffffff !important;
+            border: 1px solid #404040 !important;
+        }
+
+        [data-testid="stForm"] input::placeholder,
+        [data-testid="stForm"] textarea::placeholder {
+            color: #888888 !important;
+        }
+
+        /* Password input */
+        input[type="password"] {
+            background-color: #262730 !important;
+            color: #ffffff !important;
+        }
+
+        /* All input elements */
+        input, textarea, select {
+            background-color: #262730 !important;
+            color: #ffffff !important;
+            border: 1px solid #404040 !important;
+        }
+
+        input::placeholder, textarea::placeholder {
+            color: #888888 !important;
         }
 
         /* Select boxes */
         .stSelectbox > div > div,
         .stMultiSelect > div > div {
             background-color: #262730 !important;
-            color: #fafafa !important;
+            color: #ffffff !important;
         }
 
         .stSelectbox [data-baseweb="select"] > div,
         .stMultiSelect [data-baseweb="select"] > div {
             background-color: #262730 !important;
-            color: #fafafa !important;
+            color: #ffffff !important;
+        }
+
+        /* Dropdown options */
+        [data-baseweb="popover"] {
+            background-color: #262730 !important;
+        }
+
+        [data-baseweb="popover"] li {
+            color: #ffffff !important;
+        }
+
+        [data-baseweb="menu"] {
+            background-color: #262730 !important;
+        }
+
+        [data-baseweb="menu"] li {
+            color: #ffffff !important;
+            background-color: #262730 !important;
+        }
+
+        [data-baseweb="menu"] li:hover {
+            background-color: #3d5a80 !important;
         }
 
         /* Date Input */
         .stDateInput > div > div > input {
             background-color: #262730 !important;
-            color: #fafafa !important;
+            color: #ffffff !important;
         }
 
         /* Checkbox and Toggle */
@@ -3731,6 +3899,65 @@ def inject_custom_css():
         st.markdown(
             """
         <style>
+        /* Hide Streamlit header completely (removes Deploy button and M initial) */
+        header[data-testid="stHeader"] {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            position: absolute !important;
+            top: -1000px !important;
+        }
+
+        /* Hide main menu button */
+        #MainMenu {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        /* Hide footer */
+        footer {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        /* Hide deploy button */
+        .stDeployButton {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        /* Hide toolbar */
+        [data-testid="stToolbar"] {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        /* Hide the top-right buttons container */
+        .stApp header {
+            display: none !important;
+        }
+
+        /* Hide Streamlit Cloud avatar/profile button */
+        [data-testid="stAppViewerModeButton"],
+        [data-testid="stStatusWidget"],
+        [data-testid="stDecoration"],
+        .viewerBadge_container__1QSob,
+        .viewerBadge_link__1S137,
+        #stDecoration,
+        button[kind="header"] {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        /* Hide any remaining header elements */
+        .stApp > header,
+        div[data-testid="stHeader"],
+        section[data-testid="stHeader"] {
+            display: none !important;
+            height: 0 !important;
+            visibility: hidden !important;
+        }
+
         /* Light Mode - Bullish card styling - Green */
         .bullish-container {
             background-color: #d4edda !important;
@@ -4050,13 +4277,185 @@ def auth_page():
 def screening_page():
     inject_custom_css()
 
-    # Title with button on right side
-    title_col1, title_col2 = st.columns([4, 1])
+    # Get user info for profile avatar
+    user = st.session_state.logged_in_user
+    user_name = user.get("name", "User") if user else "User"
+    user_email = user.get("email", "") if user else ""
+    user_role = user.get("role", "user") if user else "user"
+    user_initial = user_name[0].upper() if user_name else "U"
+
+    is_dark = st.session_state.get("dark_mode", True)
+
+    # Profile avatar colors
+    if is_dark:
+        avatar_bg = "#3d5a80"
+        dropdown_bg = "#262730"
+        dropdown_text = "#ffffff"
+        dropdown_border = "#404040"
+    else:
+        avatar_bg = "#1a73e8"
+        dropdown_bg = "#ffffff"
+        dropdown_text = "#333333"
+        dropdown_border = "#dadce0"
+
+    # Custom CSS for profile dropdown (Gmail-style in top right)
+    st.markdown(
+        f"""
+    <style>
+    /* Hide default header white bar */
+    header[data-testid="stHeader"] {{
+        background-color: {"#0e1117" if is_dark else "#ffffff"} !important;
+    }}
+
+    /* Profile container - fixed to top right */
+    .profile-container {{
+        position: fixed;
+        top: 14px;
+        right: 20px;
+        z-index: 999999;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }}
+
+    /* Profile avatar circle */
+    .profile-avatar {{
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background-color: {avatar_bg};
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: box-shadow 0.2s;
+    }}
+
+    .profile-avatar:hover {{
+        box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }}
+
+    /* Dropdown menu */
+    .profile-dropdown {{
+        display: none;
+        position: absolute;
+        top: 50px;
+        right: 0;
+        background-color: {dropdown_bg};
+        border: 1px solid {dropdown_border};
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        min-width: 280px;
+        padding: 0;
+        z-index: 1000000;
+    }}
+
+    .profile-container:hover .profile-dropdown {{
+        display: block;
+    }}
+
+    .profile-header {{
+        padding: 20px;
+        text-align: center;
+        border-bottom: 1px solid {dropdown_border};
+    }}
+
+    .profile-header-avatar {{
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background-color: {avatar_bg};
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        font-weight: 600;
+        margin: 0 auto 10px;
+    }}
+
+    .profile-name {{
+        font-size: 16px;
+        font-weight: 600;
+        color: {dropdown_text};
+        margin: 5px 0;
+    }}
+
+    .profile-email {{
+        font-size: 13px;
+        color: {"#888888" if is_dark else "#666666"};
+    }}
+
+    .profile-role {{
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        margin-top: 8px;
+        background-color: {"#1b5e20" if user_role == "admin" else "#3d5a80"};
+        color: white;
+    }}
+
+    .profile-menu-item {{
+        display: block;
+        padding: 12px 20px;
+        color: {dropdown_text};
+        text-decoration: none;
+        font-size: 14px;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }}
+
+    .profile-menu-item:hover {{
+        background-color: {"#3d5a80" if is_dark else "#f1f3f4"};
+    }}
+
+    .profile-menu-divider {{
+        height: 1px;
+        background-color: {dropdown_border};
+        margin: 5px 0;
+    }}
+
+    .profile-menu-item.logout {{
+        color: #e57373;
+    }}
+    </style>
+
+    <!-- Profile Avatar in Top Right -->
+    <div class="profile-container">
+        <div class="profile-avatar">{user_initial}</div>
+        <div class="profile-dropdown">
+            <div class="profile-header">
+                <div class="profile-header-avatar">{user_initial}</div>
+                <div class="profile-name">{user_name}</div>
+                <div class="profile-email">{user_email}</div>
+                <div class="profile-role">{"👑 Admin" if user_role == "admin" else "👤 User"}</div>
+            </div>
+            <div style="padding: 8px 0;">
+                <div class="profile-menu-item" onclick="window.location.href='?page=profile'">👤 My Profile</div>
+                {('<div class="profile-menu-item">👥 User Management</div>') if user_role == "admin" else ""}
+                <div class="profile-menu-item">🔐 Token Management</div>
+                <div class="profile-menu-divider"></div>
+                <div class="profile-menu-item logout">🚪 Logout</div>
+            </div>
+        </div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    # Title row with Buy button only (profile is in sidebar)
+    title_col1, title_col2 = st.columns([5, 1])
+
     with title_col1:
         st.title("🏹 Ichimoku & MACD Stock Screener")
+
     with title_col2:
-        st.markdown("<br>", unsafe_allow_html=True)  # Add spacing to align with title
-        if st.button("🛒 Buy This 3 Items", key="buy_3_items_btn", type="primary"):
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🛒 Buy 3", key="buy_3_items_btn", type="primary"):
             st.session_state.show_buy_dialog = True
 
     # Show Buy Dialog
@@ -4070,30 +4469,63 @@ def screening_page():
     token_manager = TokenManager()
     api = UpstoxAPI(token_manager)
 
-    # Sidebar
-    st.sidebar.header("⚙️ Settings")
-
-    # Dark/Light Mode Toggle
-    st.sidebar.subheader("🎨 Theme")
-    dark_mode = st.sidebar.toggle(
-        "🌙 Dark Mode", value=st.session_state.dark_mode, key="dark_mode_toggle"
+    # Sidebar with Profile section at top
+    # Profile Avatar Header
+    st.sidebar.markdown(
+        f"""
+    <div style="text-align: center; padding: 15px 0; border-bottom: 1px solid {"#404040" if is_dark else "#e0e0e0"}; margin-bottom: 15px;">
+        <div style="width: 60px; height: 60px; border-radius: 50%; background: {avatar_bg}; color: white;
+             display: inline-flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 600; margin: 0 auto;">
+            {user_initial}
+        </div>
+        <div style="margin-top: 10px; font-weight: 600; font-size: 16px; color: {dropdown_text};">{user_name}</div>
+        <div style="font-size: 12px; color: {"#888" if is_dark else "#666"};">{user_email}</div>
+        <div style="margin-top: 8px;">
+            <span style="background: {"#1b5e20" if user_role == "admin" else "#3d5a80"}; color: white;
+                  padding: 3px 12px; border-radius: 12px; font-size: 11px;">
+                {"👑 Admin" if user_role == "admin" else "👤 User"}
+            </span>
+        </div>
+    </div>
+    """,
+        unsafe_allow_html=True,
     )
-    if dark_mode != st.session_state.dark_mode:
-        st.session_state.dark_mode = dark_mode
+
+    # Profile Menu Buttons
+    if st.sidebar.button("👤 My Profile", key="profile_btn_side", width="stretch"):
+        st.session_state.page = "profile"
         st.rerun()
 
+    if user_role == "admin":
+        if st.sidebar.button(
+            "👥 User Management", key="user_mgmt_btn_side", width="stretch"
+        ):
+            st.session_state.page = "user_management"
+            st.rerun()
+    if user_role == "admin":
+        if st.sidebar.button(
+            "🔐 Token Management", key="token_mgmt_btn_side", width="stretch"
+        ):
+            st.session_state.page = "token_management"
+            st.rerun()
+
+    # Theme toggle
+    current_theme = "🌙 Dark Mode" if is_dark else "☀️ Light Mode"
+    if st.sidebar.button(
+        f"🎨 Switch to {current_theme}", key="theme_toggle_side", width="stretch"
+    ):
+        st.session_state.dark_mode = not st.session_state.dark_mode
+        st.rerun()
+
+    if st.sidebar.button(
+        "🚪 Logout", key="logout_btn_side", width="stretch", type="secondary"
+    ):
+        logout_user()
+
     st.sidebar.markdown("---")
 
-    if st.session_state.use_mock_data:
-        st.sidebar.info("🧪 Demo Mode")
-    else:
-        if token_manager.get_token():
-            st.sidebar.success("✅ API Authenticated")
-        else:
-            st.sidebar.warning("⚠️ Not Authenticated")
-
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("📊 Data Source")
+    # Data Controls
+    st.sidebar.markdown("### 📊 Data Controls")
     use_live_data = st.sidebar.checkbox(
         "Use Live Intraday Data (V3 API)",
         value=not st.session_state.use_mock_data,
@@ -4794,145 +5226,52 @@ def detail_page():
     else:
         st.warning("⚠️ No API token found")
 
-    # Token validation and update section
-    with st.expander("🔑 Token Management", expanded=not current_token):
-        st.markdown("**Validate or Update API Token**")
+    # Simple Token Management section with link to full page
+    with st.expander("🔑 Quick Token Actions", expanded=not current_token):
+        col1, col2, col3 = st.columns(3)
 
-        col_t1, col_t2, col_t3 = st.columns(3)
+        with col1:
+            if st.button("🔃 Refresh Token", key="quick_refresh_token"):
+                if token_info and token_info.get("has_refresh_token"):
+                    with st.spinner("Refreshing..."):
+                        new_token = token_manager.refresh_token_method(
+                            token_info.get("refresh_token")
+                        )
+                        if new_token:
+                            st.success("✅ Refreshed!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Failed. Go to Token Management.")
+                else:
+                    st.error("❌ No refresh token")
 
-        with col_t1:
-            if st.button("🔄 Validate Token", key="validate_token"):
+        with col2:
+            if st.button("🔄 Validate Token", key="quick_validate_token"):
                 if current_token:
-                    test_headers = {
-                        "Accept": "application/json",
-                        "Authorization": f"Bearer {current_token}",
-                    }
                     try:
+                        test_headers = {
+                            "Accept": "application/json",
+                            "Authorization": f"Bearer {current_token}",
+                        }
                         test_response = requests.get(
                             USER_PROFILE_URL, headers=test_headers, timeout=10
                         )
                         if test_response.status_code == 200:
-                            st.success("✅ Token is valid!")
-                            user_data = test_response.json().get("data", {})
-                            if user_data:
-                                st.info(
-                                    f"User: {user_data.get('user_name', 'N/A')} | Email: {user_data.get('email', 'N/A')}"
-                                )
-                        elif test_response.status_code == 401:
-                            st.error(
-                                "❌ Token expired! Use 'Refresh Token' or get a new one."
-                            )
+                            st.success("✅ Valid!")
                         else:
-                            st.warning(
-                                f"⚠️ Unexpected response: {test_response.status_code}"
-                            )
-                    except Exception as e:
-                        st.error(f"❌ Validation failed: {str(e)}")
+                            st.error("❌ Expired!")
+                    except:
+                        st.error("❌ Error")
                 else:
-                    st.error("❌ No token to validate")
+                    st.error("❌ No token")
 
-        with col_t2:
-            if st.button("🔃 Refresh Token", key="refresh_token_btn"):
-                if token_info and token_info.get("has_refresh_token"):
-                    refresh_token = token_info.get("refresh_token")
-                    with st.spinner("Refreshing token..."):
-                        new_token = token_manager.refresh_token_method(refresh_token)
-                        if new_token:
-                            st.success(
-                                "✅ Token refreshed successfully! Valid for next 24 hours."
-                            )
-                            st.rerun()
-                        else:
-                            st.error(
-                                "❌ Refresh failed. Refresh token may have expired. Please re-authenticate."
-                            )
-                else:
-                    st.error(
-                        "❌ No refresh token available. Please re-authenticate with Upstox."
-                    )
-
-        with col_t3:
-            if st.button("🗑️ Clear Token", key="clear_token"):
-                try:
-                    with get_db_connection() as conn:
-                        conn.execute("DELETE FROM api_tokens")
-                        conn.commit()
-                    st.success("✅ Token cleared! Please enter a new token.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Failed to clear token: {str(e)}")
-
-        st.markdown("---")
-
-        # Info about token lifecycle
-        st.info("""
-        **📌 Token Lifecycle:**
-        - **Access Token**: Expires daily (midnight or ~24 hours)
-        - **Refresh Token**: Valid for 15-30 days (auto-renews access token)
-        - If refresh token expires, you need to login again with Upstox
-        """)
-
-        st.markdown("---")
-
-        # Option 1: Quick Re-authenticate with Authorization Code
-        st.markdown("**🔐 Option 1: Re-authenticate with Upstox**")
-        auth_url = f"https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id={API_KEY}&redirect_uri={REDIRECT_URL}"
-        st.markdown(f"1. [Click here to login to Upstox]({auth_url})")
-        st.markdown("2. After login, copy the `code` from the URL")
-        st.markdown("3. Paste the code below:")
-
-        auth_code = st.text_input(
-            "Authorization Code",
-            key="option_auth_code",
-            placeholder="Paste code from URL here",
-        )
-
-        if st.button("🔓 Get New Token", key="exchange_code", type="primary"):
-            if auth_code:
-                with st.spinner("Exchanging code for token..."):
-                    try:
-                        token_data = {
-                            "code": auth_code,
-                            "client_id": API_KEY,
-                            "client_secret": API_SECRET,
-                            "redirect_uri": REDIRECT_URL,
-                            "grant_type": "authorization_code",
-                        }
-                        response = requests.post(TOKEN_URL, data=token_data, timeout=15)
-                        if response.status_code == 200:
-                            access_token = response.json().get("access_token")
-                            if access_token:
-                                token_manager.save_token(access_token)
-                                st.success("✅ New token saved successfully!")
-                                st.balloons()
-                                st.rerun()
-                            else:
-                                st.error("❌ No access token in response")
-                        else:
-                            st.error(f"❌ Failed to get token: {response.text[:200]}")
-                    except Exception as e:
-                        st.error(f"❌ Error: {str(e)}")
-            else:
-                st.warning("⚠️ Please enter the authorization code")
-
-        st.markdown("---")
-
-        # Option 2: Direct Token Entry
-        st.markdown("**📝 Option 2: Enter Access Token Directly**")
-        new_token = st.text_input(
-            "Access Token",
-            type="password",
-            key="new_option_token",
-            placeholder="Paste your Upstox access token here",
-        )
-
-        if st.button("💾 Save Token", key="save_new_token"):
-            if new_token and len(new_token) > 20:
-                token_manager.save_token(new_token)
-                st.success("✅ Token saved successfully!")
+        with col3:
+            if st.button("🔐 Full Token Management", key="goto_token_page"):
+                st.session_state.page = "token_management"
                 st.rerun()
-            else:
-                st.error("❌ Please enter a valid token")
+
+        if not current_token:
+            st.info("👆 Click 'Full Token Management' to authenticate with Upstox")
 
     st.markdown("---")
 
@@ -5039,9 +5378,7 @@ def detail_page():
                                 }
                             )
 
-                            st.dataframe(
-                                df_display, use_container_width=True, hide_index=True
-                            )
+                            st.dataframe(df_display, width="stretch", hide_index=True)
 
                     with tab2:
                         st.markdown("#### 🟢 Call Options (CE)")
@@ -5087,7 +5424,7 @@ def detail_page():
                                 )
 
                             st.dataframe(
-                                df_ce_display, use_container_width=True, hide_index=True
+                                df_ce_display, width="stretch", hide_index=True
                             )
                         else:
                             st.info("No Call options available")
@@ -5136,7 +5473,7 @@ def detail_page():
                                 )
 
                             st.dataframe(
-                                df_pe_display, use_container_width=True, hide_index=True
+                                df_pe_display, width="stretch", hide_index=True
                             )
                         else:
                             st.info("No Put options available")
@@ -5414,6 +5751,11 @@ def main():
         st.stop()
         return
 
+    # Check if user is logged in first
+    if not st.session_state.user_logged_in:
+        login_page()
+        return
+
     # Check and reset ISIN daily at 8 AM, re-populate at 9:15 AM
     isin_status = check_and_reset_daily_isin()
     if isin_status == "reset":
@@ -5427,8 +5769,1039 @@ def main():
         screening_page()
     elif st.session_state.page == "detail":
         detail_page()
+    elif st.session_state.page == "token_management":
+        token_management_page()
+    elif st.session_state.page == "profile":
+        profile_page()
+    elif st.session_state.page == "user_management":
+        user_management_page()
     else:
         auth_page()
+
+
+# ----------------- Login Page -----------------
+def login_page():
+    """User Login Screen"""
+    import hashlib
+
+    # Check dark mode
+    is_dark = st.session_state.get("dark_mode", True)  # Default to dark
+
+    # Apply theme with full styling for dark mode
+    if is_dark:
+        st.markdown(
+            """
+        <style>
+        /* Dark Mode - Login Page */
+        .stApp {
+            background-color: #0e1117 !important;
+        }
+
+        /* All text white */
+        h1, h2, h3, h4, h5, h6, p, span, label, div {
+            color: #fafafa !important;
+        }
+
+        /* Input fields - comprehensive styling */
+        .stTextInput > div > div > input,
+        input[type="text"],
+        input[type="email"],
+        input[type="password"] {
+            background-color: #262730 !important;
+            color: #ffffff !important;
+            border: 1px solid #404040 !important;
+            caret-color: #ffffff !important;
+        }
+
+        /* Placeholder text */
+        .stTextInput > div > div > input::placeholder,
+        input::placeholder {
+            color: #888888 !important;
+            opacity: 1 !important;
+        }
+
+        /* Input labels */
+        .stTextInput > label {
+            color: #fafafa !important;
+        }
+
+        /* Form labels */
+        .stForm label, .stTextInput label {
+            color: #fafafa !important;
+        }
+
+        /* Form input fields */
+        [data-testid="stForm"] input {
+            background-color: #262730 !important;
+            color: #ffffff !important;
+            border: 1px solid #404040 !important;
+        }
+
+        [data-testid="stForm"] input::placeholder {
+            color: #888888 !important;
+        }
+
+        /* Markdown text */
+        .stMarkdown, .stMarkdown p, .stMarkdown h3 {
+            color: #fafafa !important;
+        }
+
+        /* Divider */
+        hr {
+            border-color: #404040 !important;
+        }
+
+        /* Buttons */
+        .stButton > button {
+            color: #ffffff !important;
+        }
+        </style>
+        """,
+            unsafe_allow_html=True,
+        )
+        title_color = "#ffffff"
+        subtitle_color = "#b0b0b0"
+    else:
+        title_color = "#333333"
+        subtitle_color = "#666666"
+
+    # Center the login form
+    col1, col2, col3 = st.columns([1, 2, 1])
+
+    with col2:
+        st.markdown("")
+        st.markdown("")
+
+        # Logo and title with proper colors
+        st.markdown(
+            f"""
+        <div style="text-align: center; padding: 20px;">
+            <h1 style="margin: 0; color: {title_color};">📈 Stock Screener</h1>
+            <p style="color: {subtitle_color}; margin-top: 10px;">Ichimoku & MACD Analysis Platform</p>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+        st.markdown("---")
+
+        # Login form title with color
+        st.markdown(
+            f"<h3 style='color: {title_color};'>🔐 Login</h3>", unsafe_allow_html=True
+        )
+
+        with st.form("login_form"):
+            email = st.text_input("📧 Email", placeholder="Enter your email")
+            password = st.text_input(
+                "🔑 Password", type="password", placeholder="Enter your password"
+            )
+
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                submit = st.form_submit_button(
+                    "🚀 Login", type="primary", width="stretch"
+                )
+            with col_btn2:
+                # Dark mode toggle in login
+                dark_toggle = st.form_submit_button(
+                    "🌙 Dark Mode" if not is_dark else "☀️ Light Mode", width="stretch"
+                )
+
+            if dark_toggle:
+                st.session_state.dark_mode = not st.session_state.dark_mode
+                st.rerun()
+
+            if submit:
+                if email and password:
+                    # Validate user from database
+                    try:
+                        with get_db_connection() as conn:
+                            c = conn.cursor()
+                            hashed_password = hashlib.sha256(
+                                password.encode()
+                            ).hexdigest()
+                            c.execute(
+                                """
+                                SELECT id, name, email, role, is_active FROM users
+                                WHERE email = ? AND password = ? AND is_active = 1
+                            """,
+                                (email.lower().strip(), hashed_password),
+                            )
+                            user = c.fetchone()
+
+                            if user:
+                                # Update last login
+                                c.execute(
+                                    """
+                                    UPDATE users SET last_login = ? WHERE id = ?
+                                """,
+                                    (
+                                        datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S"),
+                                        user[0],
+                                    ),
+                                )
+                                conn.commit()
+
+                                # Set session state with role
+                                st.session_state.user_logged_in = True
+                                st.session_state.logged_in_user = {
+                                    "id": user[0],
+                                    "name": user[1],
+                                    "email": user[2],
+                                    "role": user[3] if user[3] else "user",
+                                }
+                                st.session_state.page = "auth"
+                                role_display = (
+                                    "👑 Admin" if user[3] == "admin" else "👤 User"
+                                )
+                                st.success(
+                                    f"✅ Welcome back, {user[1]}! ({role_display})"
+                                )
+                                time.sleep(1)
+                                st.rerun()
+                            else:
+                                st.error("❌ Invalid email or password")
+                    except Exception as e:
+                        st.error(f"❌ Login error: {str(e)}")
+                else:
+                    st.warning("⚠️ Please enter both email and password")
+
+        st.markdown("---")
+
+        # Footer with proper colors
+        footer_color = "#b0b0b0" if is_dark else "#888888"
+        st.markdown(
+            f"""
+        <div style="text-align: center; color: {footer_color}; font-size: 12px; padding: 20px;">
+            <p style="color: {footer_color};">🔒 Secure Login | Only authorized users can access</p>
+            <p style="color: {footer_color};">Contact admin for access</p>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+
+# ----------------- Logout Function -----------------
+def logout_user():
+    """Logout the current user"""
+    st.session_state.user_logged_in = False
+    st.session_state.logged_in_user = None
+    st.session_state.page = "login"
+    st.session_state.authenticated = False
+    st.rerun()
+
+
+# ----------------- Profile Page -----------------
+def profile_page():
+    """User Profile and Settings Page"""
+    import hashlib
+
+    inject_custom_css()
+
+    is_dark = st.session_state.get("dark_mode", False)
+
+    st.title("👤 My Profile")
+
+    # Back button
+    if st.button("← Back to Screener", key="back_from_profile"):
+        st.session_state.page = "screening"
+        st.rerun()
+
+    st.markdown("---")
+
+    # Get current user info
+    user = st.session_state.logged_in_user
+    if not user:
+        st.error("❌ Not logged in")
+        return
+
+    # User info card
+    if is_dark:
+        card_bg = "#262730"
+        text_color = "#fafafa"
+        success_bg = "#1b5e20"
+        admin_bg = "#1a237e"
+    else:
+        card_bg = "#f8f9fa"
+        text_color = "#333333"
+        success_bg = "#d4edda"
+        admin_bg = "#e3f2fd"
+
+    # Get full user details from database
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute(
+                "SELECT name, email, role, created_at, last_login FROM users WHERE id = ?",
+                (user["id"],),
+            )
+            user_details = c.fetchone()
+            user_role = user_details[2] if user_details and user_details[2] else "user"
+    except:
+        user_details = None
+        user_role = user.get("role", "user")
+
+    st.markdown("### 📋 Account Information")
+
+    col1, col2 = st.columns(2)
+
+    # Role display
+    role_icon = "👑" if user_role == "admin" else "👤"
+    role_text = "Administrator" if user_role == "admin" else "Normal User"
+    role_color = admin_bg if user_role == "admin" else success_bg
+
+    with col1:
+        st.markdown(
+            f"""
+        <div style="background: {card_bg}; padding: 20px; border-radius: 10px; color: {text_color};">
+            <h4 style="margin: 0 0 15px 0; color: {text_color};">👤 User Details</h4>
+            <p style="margin: 8px 0; color: {text_color};"><strong>Name:</strong> {user.get("name", "N/A")}</p>
+            <p style="margin: 8px 0; color: {text_color};"><strong>Email:</strong> {user.get("email", "N/A")}</p>
+            <p style="margin: 8px 0; color: {text_color};"><strong>Role:</strong> {role_icon} {role_text}</p>
+            <p style="margin: 8px 0; color: {text_color};"><strong>Member Since:</strong> {user_details[3] if user_details else "N/A"}</p>
+            <p style="margin: 8px 0; color: {text_color};"><strong>Last Login:</strong> {user_details[4] if user_details else "N/A"}</p>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+    with col2:
+        st.markdown(
+            f"""
+        <div style="background: {role_color}; padding: 20px; border-radius: 10px; color: {"#ffffff" if is_dark else "#155724"};">
+            <h4 style="margin: 0 0 15px 0;">✅ Account Status</h4>
+            <p style="margin: 8px 0;"><strong>Status:</strong> ✅ Active</p>
+            <p style="margin: 8px 0;"><strong>Role:</strong> {role_icon} {role_text}</p>
+            <p style="margin: 8px 0;"><strong>Session:</strong> 🟢 Logged In</p>
+            <p style="margin: 8px 0;"><strong>Permissions:</strong> {"Full Access" if user_role == "admin" else "Standard"}</p>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("---")
+
+    # Change Password Section
+    st.markdown("### 🔑 Change Password")
+
+    with st.form("change_password_form"):
+        current_password = st.text_input(
+            "🔒 Current Password",
+            type="password",
+            placeholder="Enter your current password",
+        )
+        new_password = st.text_input(
+            "🔐 New Password",
+            type="password",
+            placeholder="Enter new password (min 6 characters)",
+        )
+        confirm_password = st.text_input(
+            "🔐 Confirm New Password",
+            type="password",
+            placeholder="Confirm new password",
+        )
+
+        change_pwd_btn = st.form_submit_button("🔄 Change Password", type="primary")
+
+        if change_pwd_btn:
+            if not current_password or not new_password or not confirm_password:
+                st.error("❌ Please fill in all fields")
+            elif len(new_password) < 6:
+                st.error("❌ New password must be at least 6 characters")
+            elif new_password != confirm_password:
+                st.error("❌ New passwords do not match")
+            else:
+                # Verify current password and update
+                try:
+                    with get_db_connection() as conn:
+                        c = conn.cursor()
+                        current_hash = hashlib.sha256(
+                            current_password.encode()
+                        ).hexdigest()
+
+                        # Check current password
+                        c.execute(
+                            "SELECT id FROM users WHERE id = ? AND password = ?",
+                            (user["id"], current_hash),
+                        )
+                        if c.fetchone():
+                            # Update password
+                            new_hash = hashlib.sha256(new_password.encode()).hexdigest()
+                            c.execute(
+                                "UPDATE users SET password = ? WHERE id = ?",
+                                (new_hash, user["id"]),
+                            )
+                            conn.commit()
+                            st.success("✅ Password changed successfully!")
+                            st.balloons()
+                        else:
+                            st.error("❌ Current password is incorrect")
+                except Exception as e:
+                    st.error(f"❌ Error changing password: {str(e)}")
+
+    st.markdown("---")
+
+    # Update Profile Section
+    st.markdown("### ✏️ Update Profile")
+
+    with st.form("update_profile_form"):
+        new_name = st.text_input(
+            "👤 Name", value=user.get("name", ""), placeholder="Enter your name"
+        )
+
+        update_btn = st.form_submit_button("💾 Update Profile")
+
+        if update_btn:
+            if new_name and len(new_name) >= 2:
+                try:
+                    with get_db_connection() as conn:
+                        c = conn.cursor()
+                        c.execute(
+                            "UPDATE users SET name = ? WHERE id = ?",
+                            (new_name, user["id"]),
+                        )
+                        conn.commit()
+
+                        # Update session state
+                        st.session_state.logged_in_user["name"] = new_name
+                        st.success("✅ Profile updated successfully!")
+                        time.sleep(1)
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error updating profile: {str(e)}")
+            else:
+                st.error("❌ Name must be at least 2 characters")
+
+    st.markdown("---")
+
+    # Theme Settings
+    st.markdown("### 🎨 Theme Settings")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button(
+            "🌙 Dark Mode" if not is_dark else "☀️ Light Mode",
+            key="profile_theme_toggle",
+        ):
+            st.session_state.dark_mode = not st.session_state.dark_mode
+            st.rerun()
+
+    with col2:
+        current_theme = "Dark Mode 🌙" if is_dark else "Light Mode ☀️"
+        st.info(f"Current Theme: **{current_theme}**")
+
+    st.markdown("---")
+
+    # Danger Zone
+    st.markdown("### ⚠️ Danger Zone")
+
+    with st.expander("🚨 Account Actions", expanded=False):
+        st.warning("These actions are irreversible!")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("🚪 Logout", key="profile_logout_btn"):
+                logout_user()
+
+        with col2:
+            st.caption("Logout from current session")
+
+
+# ----------------- User Management Page (Admin Only) -----------------
+def user_management_page():
+    """User Management Screen - Admin Only"""
+    import hashlib
+
+    inject_custom_css()
+
+    is_dark = st.session_state.get("dark_mode", True)
+
+    # Check if user is admin
+    current_user = st.session_state.logged_in_user
+    if not current_user or current_user.get("role") != "admin":
+        st.error("❌ Access Denied! Only administrators can access this page.")
+        if st.button("← Back to Screener"):
+            st.session_state.page = "screening"
+            st.rerun()
+        return
+
+    st.title("👥 User Management")
+    st.markdown("Manage users, add new users, and control access")
+
+    # Back button
+    if st.button("← Back to Screener", key="back_from_user_mgmt"):
+        st.session_state.page = "screening"
+        st.rerun()
+
+    st.markdown("---")
+
+    # Colors based on theme
+    if is_dark:
+        card_bg = "#262730"
+        text_color = "#fafafa"
+        admin_bg = "#1a237e"
+        user_bg = "#1b5e20"
+        inactive_bg = "#b71c1c"
+    else:
+        card_bg = "#f8f9fa"
+        text_color = "#333333"
+        admin_bg = "#e3f2fd"
+        user_bg = "#d4edda"
+        inactive_bg = "#f8d7da"
+
+    # Fetch all users
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute(
+                "SELECT id, name, email, role, is_active, created_at, last_login FROM users ORDER BY id"
+            )
+            users = c.fetchall()
+    except Exception as e:
+        st.error(f"❌ Error fetching users: {str(e)}")
+        return
+
+    # User Statistics
+    st.markdown("### 📊 User Statistics")
+
+    total_users = len(users)
+    admin_count = sum(1 for u in users if u[3] == "admin")
+    active_count = sum(1 for u in users if u[4] == 1)
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("👥 Total Users", total_users)
+    col2.metric("👑 Admins", admin_count)
+    col3.metric("👤 Normal Users", total_users - admin_count)
+    col4.metric("✅ Active", active_count)
+
+    st.markdown("---")
+
+    # Add New User Section
+    st.markdown("### ➕ Add New User")
+
+    with st.form("add_user_form"):
+        col1, col2 = st.columns(2)
+
+        with col1:
+            new_name = st.text_input("👤 Name", placeholder="Enter user name")
+            new_email = st.text_input("📧 Email", placeholder="Enter email address")
+
+        with col2:
+            new_password = st.text_input(
+                "🔑 Password",
+                type="password",
+                placeholder="Enter password (min 6 chars)",
+            )
+            new_role = st.selectbox("🎭 Role", ["user", "admin"], index=0)
+
+        add_user_btn = st.form_submit_button("➕ Add User", type="primary")
+
+        if add_user_btn:
+            if not new_name or not new_email or not new_password:
+                st.error("❌ Please fill in all fields")
+            elif len(new_password) < 6:
+                st.error("❌ Password must be at least 6 characters")
+            elif "@" not in new_email:
+                st.error("❌ Please enter a valid email address")
+            else:
+                try:
+                    with get_db_connection() as conn:
+                        c = conn.cursor()
+                        # Check if email already exists
+                        c.execute(
+                            "SELECT id FROM users WHERE email = ?",
+                            (new_email.lower().strip(),),
+                        )
+                        if c.fetchone():
+                            st.error("❌ Email already exists!")
+                        else:
+                            hashed_pw = hashlib.sha256(
+                                new_password.encode()
+                            ).hexdigest()
+                            c.execute(
+                                """
+                                INSERT INTO users (name, email, password, role, is_active, created_at)
+                                VALUES (?, ?, ?, ?, 1, ?)
+                            """,
+                                (
+                                    new_name,
+                                    new_email.lower().strip(),
+                                    hashed_pw,
+                                    new_role,
+                                    datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S"),
+                                ),
+                            )
+                            conn.commit()
+                            st.success(f"✅ User '{new_name}' added successfully!")
+                            st.balloons()
+                            time.sleep(1)
+                            st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error adding user: {str(e)}")
+
+    st.markdown("---")
+
+    # Existing Users List
+    st.markdown("### 📋 All Users")
+
+    for user in users:
+        user_id, name, email, role, is_active, created_at, last_login = user
+
+        role = role if role else "user"
+        role_icon = "👑" if role == "admin" else "👤"
+        status_icon = "✅" if is_active else "❌"
+
+        # Card color based on role and status
+        if not is_active:
+            bg_color = inactive_bg
+        elif role == "admin":
+            bg_color = admin_bg
+        else:
+            bg_color = user_bg
+
+        with st.expander(
+            f"{role_icon} {name} ({email}) - {status_icon} {'Active' if is_active else 'Inactive'}"
+        ):
+            col1, col2 = st.columns(2)
+
+            with col1:
+                st.markdown(f"""
+                **User ID:** {user_id}
+                **Name:** {name}
+                **Email:** {email}
+                **Role:** {role_icon} {role.capitalize()}
+                **Status:** {status_icon} {"Active" if is_active else "Inactive"}
+                **Created:** {created_at or "N/A"}
+                **Last Login:** {last_login or "Never"}
+                """)
+
+            with col2:
+                st.markdown("**Actions:**")
+
+                # Toggle Active Status
+                if is_active:
+                    if st.button("🚫 Deactivate", key=f"deactivate_{user_id}"):
+                        if user_id == current_user["id"]:
+                            st.error("❌ Cannot deactivate yourself!")
+                        else:
+                            try:
+                                with get_db_connection() as conn:
+                                    conn.execute(
+                                        "UPDATE users SET is_active = 0 WHERE id = ?",
+                                        (user_id,),
+                                    )
+                                    conn.commit()
+                                st.success(f"✅ User '{name}' deactivated")
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error: {str(e)}")
+                else:
+                    if st.button("✅ Activate", key=f"activate_{user_id}"):
+                        try:
+                            with get_db_connection() as conn:
+                                conn.execute(
+                                    "UPDATE users SET is_active = 1 WHERE id = ?",
+                                    (user_id,),
+                                )
+                                conn.commit()
+                            st.success(f"✅ User '{name}' activated")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Error: {str(e)}")
+
+                # Toggle Role
+                if role == "admin":
+                    if st.button("👤 Make User", key=f"make_user_{user_id}"):
+                        if user_id == current_user["id"]:
+                            st.error("❌ Cannot demote yourself!")
+                        else:
+                            try:
+                                with get_db_connection() as conn:
+                                    conn.execute(
+                                        "UPDATE users SET role = 'user' WHERE id = ?",
+                                        (user_id,),
+                                    )
+                                    conn.commit()
+                                st.success(f"✅ '{name}' is now a normal user")
+                                time.sleep(1)
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error: {str(e)}")
+                else:
+                    if st.button("👑 Make Admin", key=f"make_admin_{user_id}"):
+                        try:
+                            with get_db_connection() as conn:
+                                conn.execute(
+                                    "UPDATE users SET role = 'admin' WHERE id = ?",
+                                    (user_id,),
+                                )
+                                conn.commit()
+                            st.success(f"✅ '{name}' is now an admin")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Error: {str(e)}")
+
+                # Reset Password
+                with st.popover("🔑 Reset Password"):
+                    new_pw = st.text_input(
+                        "New Password", type="password", key=f"new_pw_{user_id}"
+                    )
+                    if st.button("Reset", key=f"reset_pw_{user_id}"):
+                        if new_pw and len(new_pw) >= 6:
+                            try:
+                                hashed_pw = hashlib.sha256(new_pw.encode()).hexdigest()
+                                with get_db_connection() as conn:
+                                    conn.execute(
+                                        "UPDATE users SET password = ? WHERE id = ?",
+                                        (hashed_pw, user_id),
+                                    )
+                                    conn.commit()
+                                st.success(f"✅ Password reset for '{name}'")
+                            except Exception as e:
+                                st.error(f"❌ Error: {str(e)}")
+                        else:
+                            st.error("❌ Password must be at least 6 characters")
+
+                # Delete User (only if not self)
+                if user_id != current_user["id"]:
+                    if st.button(
+                        "🗑️ Delete User", key=f"delete_{user_id}", type="secondary"
+                    ):
+                        try:
+                            with get_db_connection() as conn:
+                                conn.execute(
+                                    "DELETE FROM users WHERE id = ?", (user_id,)
+                                )
+                                conn.commit()
+                            st.success(f"✅ User '{name}' deleted")
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Error: {str(e)}")
+
+
+# ----------------- Token Management Page -----------------
+def token_management_page():
+    """Dedicated Token Management Screen"""
+
+    # Apply dark/light mode
+    inject_custom_css()
+
+    # Check dark mode for styling
+    is_dark = st.session_state.get("dark_mode", False)
+
+    st.title("🔐 Token Management")
+    st.markdown("Manage your Upstox API authentication token")
+
+    # Back button
+    if st.button("← Back to Screener", key="back_to_screener"):
+        st.session_state.page = "screening"
+        st.rerun()
+
+    st.markdown("---")
+
+    token_manager = TokenManager()
+    token_info = token_manager.get_token_info()
+    current_token = token_manager.get_token()
+
+    # Token Status Card
+    st.markdown("### 📊 Token Status")
+
+    if current_token and token_info:
+        expires_at = token_info.get("expires_at")
+        has_refresh = token_info.get("has_refresh_token", False)
+        created_at = token_info.get("created_at", "Unknown")
+
+        # Check expiry
+        is_expired = False
+        hours_left = 0
+        if expires_at:
+            try:
+                expiry_time = datetime.strptime(expires_at, "%Y-%m-%d %H:%M:%S")
+                if expiry_time <= datetime.now():
+                    is_expired = True
+                else:
+                    hours_left = (expiry_time - datetime.now()).total_seconds() / 3600
+            except:
+                pass
+
+        # Validate token with API
+        is_valid = False
+        user_info = None
+
+        with st.spinner("Validating token with Upstox..."):
+            try:
+                test_headers = {
+                    "Accept": "application/json",
+                    "Authorization": f"Bearer {current_token}",
+                }
+                test_response = requests.get(
+                    USER_PROFILE_URL, headers=test_headers, timeout=10
+                )
+                if test_response.status_code == 200:
+                    is_valid = True
+                    user_info = test_response.json().get("data", {})
+            except:
+                pass
+
+        # Status display
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            if is_valid:
+                st.success("✅ Token Valid")
+            elif is_expired:
+                st.error("❌ Token Expired")
+            else:
+                st.warning("⚠️ Token Invalid")
+
+        with col2:
+            if has_refresh:
+                st.success("🔄 Refresh Token Available")
+            else:
+                st.warning("⚠️ No Refresh Token")
+
+        with col3:
+            if hours_left > 0:
+                st.info(f"⏰ Expires in {hours_left:.1f} hrs")
+            elif is_expired:
+                st.error("⏰ Expired")
+            else:
+                st.warning("⏰ Unknown")
+
+        # Token details
+        if is_dark:
+            card_bg = "#262730"
+            text_color = "#fafafa"
+        else:
+            card_bg = "#f8f9fa"
+            text_color = "#333333"
+
+        st.markdown(
+            f"""
+        <div style="background: {card_bg}; padding: 20px; border-radius: 10px; margin: 15px 0; color: {text_color};">
+            <h4 style="margin: 0 0 15px 0; color: {text_color};">📋 Token Details</h4>
+            <p style="margin: 5px 0; color: {text_color};"><strong>Token:</strong> ...{current_token[-12:]}</p>
+            <p style="margin: 5px 0; color: {text_color};"><strong>Created:</strong> {created_at}</p>
+            <p style="margin: 5px 0; color: {text_color};"><strong>Expires:</strong> {expires_at or "Unknown"}</p>
+            <p style="margin: 5px 0; color: {text_color};"><strong>Refresh Token:</strong> {"Yes ✅" if has_refresh else "No ❌"}</p>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+        # User info if available
+        if user_info:
+            st.markdown(
+                f"""
+            <div style="background: {"#1b5e20" if is_dark else "#d4edda"}; padding: 15px; border-radius: 10px; margin: 15px 0; color: {"#ffffff" if is_dark else "#155724"};">
+                <h4 style="margin: 0 0 10px 0;">👤 Logged in as</h4>
+                <p style="margin: 5px 0;"><strong>Name:</strong> {user_info.get("user_name", "N/A")}</p>
+                <p style="margin: 5px 0;"><strong>Email:</strong> {user_info.get("email", "N/A")}</p>
+                <p style="margin: 5px 0;"><strong>User ID:</strong> {user_info.get("user_id", "N/A")}</p>
+            </div>
+            """,
+                unsafe_allow_html=True,
+            )
+
+        st.markdown("---")
+
+        # Action buttons
+        st.markdown("### ⚡ Quick Actions")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            if st.button(
+                "🔃 Refresh Token",
+                key="tm_refresh_token",
+                type="primary",
+                disabled=not has_refresh,
+            ):
+                if has_refresh:
+                    with st.spinner("Refreshing token..."):
+                        refresh_token = token_info.get("refresh_token")
+                        new_token = token_manager.refresh_token_method(refresh_token)
+                        if new_token:
+                            st.success("✅ Token refreshed successfully!")
+                            st.balloons()
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error("❌ Refresh failed. Please re-authenticate.")
+
+        with col2:
+            if st.button("🔄 Validate Token", key="tm_validate_token"):
+                with st.spinner("Validating..."):
+                    try:
+                        test_headers = {
+                            "Accept": "application/json",
+                            "Authorization": f"Bearer {current_token}",
+                        }
+                        test_response = requests.get(
+                            USER_PROFILE_URL, headers=test_headers, timeout=10
+                        )
+                        if test_response.status_code == 200:
+                            st.success("✅ Token is valid!")
+                        elif test_response.status_code == 401:
+                            st.error("❌ Token is expired or invalid!")
+                        else:
+                            st.warning(
+                                f"⚠️ Unexpected response: {test_response.status_code}"
+                            )
+                    except Exception as e:
+                        st.error(f"❌ Error: {str(e)}")
+
+        with col3:
+            if st.button("🗑️ Clear Token", key="tm_clear_token"):
+                try:
+                    with get_db_connection() as conn:
+                        conn.execute("DELETE FROM api_tokens")
+                        conn.commit()
+                    st.success("✅ Token cleared!")
+                    time.sleep(1)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+
+    else:
+        # No token found
+        st.error("❌ No API Token Found")
+        st.markdown(
+            """
+        <div style="background: #f8d7da; padding: 20px; border-radius: 10px; margin: 15px 0; color: #721c24;">
+            <h4 style="margin: 0 0 10px 0;">⚠️ Authentication Required</h4>
+            <p>You need to authenticate with Upstox to use the API features like:</p>
+            <ul>
+                <li>Fetching live option chain data</li>
+                <li>Placing trades</li>
+                <li>Checking order book and positions</li>
+            </ul>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("---")
+
+    # Re-authenticate section
+    st.markdown("### 🔐 Authenticate with Upstox")
+
+    st.markdown("""
+    **Follow these steps to get a new token:**
+    1. Click the login link below
+    2. Login to your Upstox account
+    3. After login, you'll be redirected - copy the `code` from the URL
+    4. Paste the code below and click "Get New Token"
+    """)
+
+    auth_url = f"https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id={API_KEY}&redirect_uri={REDIRECT_URL}"
+
+    st.markdown(f"### [🔗 Click here to login to Upstox]({auth_url})")
+
+    st.markdown("---")
+
+    # Authorization code input
+    col1, col2 = st.columns([3, 1])
+
+    with col1:
+        auth_code = st.text_input(
+            "📝 Authorization Code",
+            key="tm_auth_code",
+            placeholder="Paste the code from URL here...",
+        )
+
+    with col2:
+        st.write("")  # Spacer
+        st.write("")  # Spacer
+        get_token_btn = st.button(
+            "🔓 Get New Token", key="tm_get_token", type="primary"
+        )
+
+    if get_token_btn:
+        if auth_code:
+            with st.spinner("Exchanging code for token..."):
+                try:
+                    token_data = {
+                        "code": auth_code,
+                        "client_id": API_KEY,
+                        "client_secret": API_SECRET,
+                        "redirect_uri": REDIRECT_URL,
+                        "grant_type": "authorization_code",
+                    }
+                    response = requests.post(TOKEN_URL, data=token_data, timeout=15)
+
+                    if response.status_code == 200:
+                        data = response.json()
+                        access_token = data.get("access_token")
+                        refresh_token = data.get("refresh_token")
+                        expires_in = data.get("expires_in", 86400)
+
+                        if access_token:
+                            token_manager.save_token(
+                                access_token, refresh_token, expires_in
+                            )
+                            st.success("✅ Token saved successfully!")
+                            st.balloons()
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error("❌ No access token in response")
+                    else:
+                        error_msg = response.json().get(
+                            "error_description", response.text
+                        )
+                        st.error(f"❌ Failed to get token: {error_msg}")
+                except Exception as e:
+                    st.error(f"❌ Error: {str(e)}")
+        else:
+            st.warning("⚠️ Please enter the authorization code")
+
+    st.markdown("---")
+
+    # Manual token entry
+    with st.expander("📝 Enter Token Manually (Advanced)"):
+        st.markdown("If you already have an access token, you can enter it directly:")
+
+        manual_token = st.text_input(
+            "Access Token", key="tm_manual_token", type="password"
+        )
+        manual_refresh = st.text_input(
+            "Refresh Token (Optional)", key="tm_manual_refresh", type="password"
+        )
+
+        if st.button("💾 Save Token", key="tm_save_manual"):
+            if manual_token:
+                token_manager.save_token(
+                    manual_token, manual_refresh if manual_refresh else None, 86400
+                )
+                st.success("✅ Token saved!")
+                time.sleep(1)
+                st.rerun()
+            else:
+                st.warning("⚠️ Please enter an access token")
+
+    st.markdown("---")
+
+    # Token lifecycle info
+    st.markdown("### 📚 Token Lifecycle")
+
+    st.markdown("""
+    | Token Type | Validity | Purpose |
+    |------------|----------|---------|
+    | **Access Token** | ~24 hours | Used for API calls |
+    | **Refresh Token** | 15-30 days | Used to get new access tokens |
+
+    **Tips:**
+    - 🔄 Click "Refresh Token" when your access token expires
+    - ⏰ Token auto-refreshes when close to expiry
+    - 🔐 If refresh token expires, you need to login again
+    """)
 
 
 if __name__ == "__main__":
