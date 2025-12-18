@@ -38,6 +38,41 @@ HTTP_SESSION = get_http_session()
 # ----------------- Configuration and Setup -----------------
 st.set_page_config(layout="wide", page_title="NSE Stock Screener (Ichimoku & MACD)")
 
+# CRITICAL: Anti-flash CSS must be injected FIRST to prevent white screen during refresh
+# This sets the background color before any content loads
+st.markdown(
+    """
+    <style>
+    /* ANTI-FLASH: Set dark background immediately to prevent white flash during refresh */
+    html, body, .stApp, .main, [data-testid="stAppViewContainer"],
+    [data-testid="stHeader"], [data-testid="stToolbar"],
+    .block-container, [data-testid="stSidebar"] {
+        background-color: #0e1117 !important;
+    }
+
+    /* Ensure all containers have dark background during load */
+    .stApp > header, .stApp::before {
+        background-color: #0e1117 !important;
+    }
+
+    /* Prevent layout shift during refresh */
+    .element-container {
+        min-height: 1px;
+    }
+
+    /* Smooth content appearance */
+    @keyframes fadeIn {
+        from { opacity: 0.95; }
+        to { opacity: 1; }
+    }
+    .stApp {
+        animation: fadeIn 0.1s ease-in-out;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # Upstox API Configuration - Loaded from .env file with fallback defaults
 API_KEY = os.environ.get("UPSTOX_API_KEY", "edc571d8-281a-4299-8e7e-6419072d63c5")
 API_SECRET = os.environ.get("UPSTOX_API_SECRET", "i2mxuje8lb")
@@ -1738,7 +1773,102 @@ class UpstoxAPI:
         except Exception as e:
             return None, str(e)[:50]
 
-    def get_option_contracts(self, instrument_key, expiry_date=None):
+    def get_market_quote(self, symbol):
+        """Get market quote (LTP, OHLC, Volume) for a symbol - works even after market hours
+
+        Returns:
+            Tuple of (quote_data, error_message) - quote_data is None if failed
+        """
+        try:
+            headers = self.get_headers()
+            if not headers:
+                return None, "No valid API token found"
+
+            instrument_key = self._get_instrument_key(symbol)
+            if not instrument_key:
+                return None, f"Could not find instrument key for {symbol}"
+
+            import urllib.parse
+
+            encoded_key = urllib.parse.quote(instrument_key, safe="")
+
+            # Use market quote endpoint for full OHLC data
+            url = f"{BASE_URL}/v2/market-quote/quotes?instrument_key={encoded_key}"
+
+            response = HTTP_SESSION.get(url, headers=headers, timeout=API_TIMEOUT)
+
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") == "success":
+                    quote_data = data.get("data", {}).get(instrument_key, {})
+                    if quote_data:
+                        ohlc = quote_data.get("ohlc", {})
+                        return {
+                            "ltp": quote_data.get("last_price", 0),
+                            "open": ohlc.get("open", 0),
+                            "high": ohlc.get("high", 0),
+                            "low": ohlc.get("low", 0),
+                            "close": ohlc.get("close", 0),
+                            "prev_close": quote_data.get("previous_close", 0),
+                            "volume": quote_data.get("volume", 0),
+                            "avg_price": quote_data.get("average_price", 0),
+                            "total_buy_qty": quote_data.get("total_buy_quantity", 0),
+                            "total_sell_qty": quote_data.get("total_sell_quantity", 0),
+                            "lower_circuit": quote_data.get("lower_circuit_limit", 0),
+                            "upper_circuit": quote_data.get("upper_circuit_limit", 0),
+                            "timestamp": quote_data.get("last_trade_time", ""),
+                        }, None
+                    else:
+                        return None, "No quote data returned"
+                else:
+                    return None, f"API Error: {data.get('message', 'Unknown')}"
+            elif response.status_code == 401:
+                return None, "Token expired"
+            elif response.status_code == 429:
+                return None, "Rate limited"
+            else:
+                return None, f"HTTP {response.status_code}"
+
+        except requests.exceptions.Timeout:
+            return None, "Timeout"
+        except Exception as e:
+            return None, str(e)[:50]
+
+    def get_ltp(self, symbol):
+        """Get Last Traded Price for a symbol - lightweight call
+
+        Returns:
+            Tuple of (ltp, error_message) - ltp is None if failed
+        """
+        try:
+            headers = self.get_headers()
+            if not headers:
+                return None, "No valid API token found"
+
+            instrument_key = self._get_instrument_key(symbol)
+            if not instrument_key:
+                return None, f"Could not find instrument key for {symbol}"
+
+            import urllib.parse
+
+            encoded_key = urllib.parse.quote(instrument_key, safe="")
+
+            url = f"{BASE_URL}/v2/market-quote/ltp?instrument_key={encoded_key}"
+
+            response = HTTP_SESSION.get(url, headers=headers, timeout=API_TIMEOUT)
+
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("status") == "success":
+                    ltp_data = data.get("data", {}).get(instrument_key, {})
+                    return ltp_data.get("last_price", 0), None
+                else:
+                    return None, f"API Error: {data.get('message', 'Unknown')}"
+            else:
+                return None, f"HTTP {response.status_code}"
+
+        except Exception as e:
+            return None, str(e)[:50]
         """
         Fetch option contracts for an underlying symbol
 
@@ -2656,12 +2786,27 @@ def fetch_single_stock_data(
         if not data_desc or len(data_desc) < 60:
             return None
 
+        # Current day's data
         current_price = data_desc[0]["close"]
         high_price = data_desc[0]["high"]
         low_price = data_desc[0]["low"]
+        open_price = data_desc[0]["open"]
+        volume = data_desc[0].get("volume", 0)
+
+        # Previous day's close
+        prev_close = data_desc[1]["close"] if len(data_desc) > 1 else current_price
+
+        # Average Trade Price (ATP) - will be updated with live data if available
+        avg_trade_price = (high_price + low_price + current_price) / 3
+
+        # Data source tracking
+        data_source = "HISTORICAL"  # Default
 
         # Fetch current/live price if enabled
         if use_live_data and not use_mock:
+            live_data_fetched = False
+
+            # First, try intraday candle data (works during market hours)
             try:
                 intraday_data, error = api.get_current_data(
                     symbol, interval_minutes=intraday_interval
@@ -2672,8 +2817,50 @@ def fetch_single_stock_data(
                     # Get the high and low from today's intraday data
                     high_price = max([c["high"] for c in intraday_data])
                     low_price = min([c["low"] for c in intraday_data])
+                    # Get open from first candle of the day
+                    open_price = (
+                        intraday_data[-1]["open"] if intraday_data else open_price
+                    )
+                    # Sum volume from all intraday candles
+                    volume = sum([c.get("volume", 0) for c in intraday_data])
+                    # Recalculate ATP with updated values
+                    avg_trade_price = (high_price + low_price + current_price) / 3
+                    data_source = "LIVE"
+                    live_data_fetched = True
             except Exception:
-                pass  # Fall back to historical data
+                pass
+
+            # If intraday failed, try market quote API (works even after market hours)
+            if not live_data_fetched:
+                try:
+                    quote_data, error = api.get_market_quote(symbol)
+                    if quote_data:
+                        # LTP is the current/last traded price
+                        current_price = quote_data.get("ltp", current_price)
+                        # Today's OHLC
+                        if quote_data.get("open", 0) > 0:
+                            open_price = quote_data.get("open", open_price)
+                        if quote_data.get("high", 0) > 0:
+                            high_price = quote_data.get("high", high_price)
+                        if quote_data.get("low", 0) > 0:
+                            low_price = quote_data.get("low", low_price)
+                        if quote_data.get("volume", 0) > 0:
+                            volume = quote_data.get("volume", volume)
+                        if quote_data.get("prev_close", 0) > 0:
+                            prev_close = quote_data.get("prev_close", prev_close)
+                        # Use actual average price from exchange if available
+                        if quote_data.get("avg_price", 0) > 0:
+                            avg_trade_price = quote_data.get(
+                                "avg_price", avg_trade_price
+                            )
+                        else:
+                            avg_trade_price = (
+                                high_price + low_price + current_price
+                            ) / 3
+                        data_source = "QUOTE"
+                        live_data_fetched = True
+                except Exception:
+                    pass  # Fall back to historical data
 
         data_asc = data_desc[::-1]
         indicators_desc, _ = calculate_indicators(data_asc)
@@ -2686,26 +2873,72 @@ def fetch_single_stock_data(
 
         if (
             latest["senkou_span_b"] is None
+            or latest["senkou_span_a"] is None
             or latest["macd_hist"] is None
             or previous["macd_hist"] is None
         ):
             return None
 
+        # Get Ichimoku values
+        senkou_span_a = latest["senkou_span_a"]
         senkou_span_b = latest["senkou_span_b"]
         latest_macd_hist = latest["macd_hist"]
+        latest_macd_signal = latest["macd_signal"]
         previous_macd_hist = previous["macd_hist"]
 
-        # Cloud position
-        cloud_bullish = current_price > senkou_span_b  # Price ABOVE cloud
-        cloud_bearish = current_price < senkou_span_b  # Price BELOW cloud
+        # ============================================================
+        # CHIKOU SPAN CHECK (Lagging Span)
+        # Compare current price with close price from 26 periods ago
+        # ============================================================
+        chikou_reference_price = None
+        if len(indicators_desc) > 26:
+            chikou_reference_price = indicators_desc[26]["close"]
 
-        # MACD Histogram changes
-        macd_hist_increasing = (
-            latest_macd_hist > previous_macd_hist
-        )  # Getting stronger (more positive)
-        macd_hist_decreasing = (
-            latest_macd_hist < previous_macd_hist
-        )  # Getting weaker (more negative)
+        chikou_bullish = (
+            current_price > chikou_reference_price
+            if chikou_reference_price is not None
+            else False
+        )
+        chikou_bearish = (
+            current_price < chikou_reference_price
+            if chikou_reference_price is not None
+            else False
+        )
+
+        # ============================================================
+        # CLOUD POSITION CHECK
+        # Price must be above/below BOTH Senkou Span A and Senkou Span B
+        # ============================================================
+        cloud_position_bullish = (
+            current_price > senkou_span_a and current_price > senkou_span_b
+        )
+        cloud_position_bearish = (
+            current_price < senkou_span_a and current_price < senkou_span_b
+        )
+
+        # ============================================================
+        # CLOUD COLOR CHECK
+        # Bullish: Senkou Span A > Senkou Span B (Green Cloud)
+        # Bearish: Senkou Span B > Senkou Span A (Red Cloud)
+        # ============================================================
+        cloud_color_bullish = senkou_span_a > senkou_span_b  # Green cloud
+        cloud_color_bearish = senkou_span_b > senkou_span_a  # Red cloud
+
+        # ============================================================
+        # MACD CHECK
+        # Bullish: MACD Histogram > 0 OR MACD Signal Line > 0
+        # Bearish: MACD Histogram < 0 OR MACD Signal Line < 0
+        # ============================================================
+        macd_bullish = (latest_macd_hist > 0) or (
+            latest_macd_signal is not None and latest_macd_signal > 0
+        )
+        macd_bearish = (latest_macd_hist < 0) or (
+            latest_macd_signal is not None and latest_macd_signal < 0
+        )
+
+        # MACD Histogram changes (kept for display purposes)
+        macd_hist_increasing = latest_macd_hist > previous_macd_hist
+        macd_hist_decreasing = latest_macd_hist < previous_macd_hist
 
         # Calculate MACD differences for last 5 days
         macd_diffs = []
@@ -2739,19 +2972,45 @@ def fetch_single_stock_data(
             else 0
         )
 
-        # BEARISH (Working - Keep as is):
-        # - Price below cloud (cloud_bearish)
-        # - MACD histogram negative (< 0)
-        # - MACD histogram decreasing (getting more negative)
+        # Proximity metrics for sorting (as per requirements)
+        # Bullish: Close - Low (smaller = price closer to day's low = better entry)
+        # Bearish: High - Close (smaller = price closer to day's high = better entry)
+        proximity_to_low = current_price - low_price  # For Bullish sorting
+        proximity_to_high = high_price - current_price  # For Bearish sorting
 
-        # BULLISH (Exact Opposite of Bearish):
-        # - Price above cloud (cloud_bullish)
-        # - MACD histogram positive (> 0)
-        # - MACD histogram increasing (getting more positive)
+        # ============================================================
+        # SIGNAL DETERMINATION
+        # ============================================================
+        # BULLISH: ALL conditions must be true:
+        #   1. Chikou Span: Current price > candle from 26 periods ago
+        #   2. Cloud Position: Price > both Senkou Span A AND Senkou Span B
+        #   3. Cloud Color: Senkou Span A > Senkou Span B (green cloud)
+        #   4. MACD: Histogram > 0 OR Signal Line > 0
+        #
+        # BEARISH: ALL conditions must be true:
+        #   1. Chikou Span: Current price < candle from 26 periods ago
+        #   2. Cloud Position: Price < both Senkou Span A AND Senkou Span B
+        #   3. Cloud Color: Senkou Span B > Senkou Span A (red cloud)
+        #   4. MACD: Histogram < 0 OR Signal Line < 0
+        # ============================================================
 
-        if cloud_bearish and latest_macd_hist < 0 and macd_hist_decreasing:
+        is_bullish = (
+            chikou_bullish
+            and cloud_position_bullish
+            and cloud_color_bullish
+            and macd_bullish
+        )
+
+        is_bearish = (
+            chikou_bearish
+            and cloud_position_bearish
+            and cloud_color_bearish
+            and macd_bearish
+        )
+
+        if is_bearish:
             trend, color = "Bearish", "red"
-        elif cloud_bullish and latest_macd_hist > 0 and macd_hist_increasing:
+        elif is_bullish:
             trend, color = "Bullish", "green"
         else:
             trend, color = "Neutral/Mixed", "gray"
@@ -2760,16 +3019,44 @@ def fetch_single_stock_data(
             "symbol": symbol,
             "name": stock["name"],
             "current_price": round(current_price, 2),
+            "open_price": round(open_price, 2),
             "high_price": round(high_price, 2),
             "low_price": round(low_price, 2),
+            "prev_close": round(prev_close, 2),
+            "avg_trade_price": round(avg_trade_price, 2),
+            "volume": volume,
+            "data_source": data_source,  # LIVE, QUOTE, or HISTORICAL
+            "senkou_span_a": round(senkou_span_a, 2),
             "senkou_span_b": round(senkou_span_b, 2),
+            "chikou_reference_price": round(chikou_reference_price, 2)
+            if chikou_reference_price
+            else None,
             "macd_hist": round(latest_macd_hist, 4),
+            "macd_signal": round(latest_macd_signal, 4) if latest_macd_signal else None,
             "prev_macd_hist": round(previous_macd_hist, 4),
             "trend": trend,
             "color": color,
+            # Signal condition details for debugging/transparency
+            "signal_conditions": {
+                "chikou_bullish": chikou_bullish,
+                "chikou_bearish": chikou_bearish,
+                "cloud_position_bullish": cloud_position_bullish,
+                "cloud_position_bearish": cloud_position_bearish,
+                "cloud_color_bullish": cloud_color_bullish,
+                "cloud_color_bearish": cloud_color_bearish,
+                "macd_bullish": macd_bullish,
+                "macd_bearish": macd_bearish,
+            },
             "macd_diffs_5d": macd_diffs,
             "macd_hist_values": macd_hist_values,
             "intraday_strength_pct": round(intraday_strength_pct, 4),
+            # Proximity metrics for sorting
+            "proximity_to_low": round(
+                proximity_to_low, 2
+            ),  # Close - Low (for Bullish sorting)
+            "proximity_to_high": round(
+                proximity_to_high, 2
+            ),  # High - Close (for Bearish sorting)
             "indicators": indicators_desc,
             "raw_data": data_desc,
             "last_updated": datetime.now().strftime("%H:%M:%S"),
@@ -2869,9 +3156,11 @@ def show_buy_dialog():
     bullish_stocks = [s for s in stock_data if s["trend"] == "Bullish"]
     bearish_stocks = [s for s in stock_data if s["trend"] == "Bearish"]
 
-    # Sort by intraday strength
-    bullish_stocks.sort(key=lambda x: x["intraday_strength_pct"], reverse=True)
-    bearish_stocks.sort(key=lambda x: x["intraday_strength_pct"], reverse=True)
+    # Sort by proximity metrics (Ascending - smallest at top = best entry)
+    # Bullish: Close - Low (smaller = price closer to day's low)
+    # Bearish: High - Close (smaller = price closer to day's high)
+    bullish_stocks.sort(key=lambda x: x.get("proximity_to_low", float("inf")))
+    bearish_stocks.sort(key=lambda x: x.get("proximity_to_high", float("inf")))
 
     # Selection options
     st.markdown("### 📊 Select Stocks to Trade")
@@ -3826,9 +4115,11 @@ def inject_custom_css():
         div[style*="background-color: #f8f9fa"],
         div[style*="background: #f8f9fa"],
         div[style*="background-color: #ffffff"],
-        div[style*="background: #ffffff"] {
-            background-color: #262730 !important;
-            color: #fafafa !important;
+        div[style*="background: #ffffff"],
+        div[style*="background-color: #495057"],
+        div[style*="background: #495057"] {
+            background-color: #495057 !important;
+            color: #ffffff !important;
         }
 
         /* Yellow/Warning cards */
@@ -4097,41 +4388,97 @@ def render_stock_card(stock_data, card_index, trend_type):
         # Build the card content based on trend color
         macd_diffs = stock_data.get("macd_diffs_5d", [0, 0, 0, 0, 0])
 
-        # Get low price from stock data
+        # Get prices from stock data
         low_price = stock_data.get("low_price", stock_data["current_price"] * 0.99)
+        open_price = stock_data.get("open_price", stock_data["current_price"])
+        prev_close = stock_data.get("prev_close", stock_data["current_price"])
+        avg_trade_price = stock_data.get("avg_trade_price", stock_data["current_price"])
+        volume = stock_data.get("volume", 0)
 
-        # Timestamp display
+        # Get proximity metrics for sorting verification
+        proximity_to_low = stock_data.get("proximity_to_low", 0)
+        proximity_to_high = stock_data.get("proximity_to_high", 0)
+
+        # Get signal conditions for debugging
+        signal_conditions = stock_data.get("signal_conditions", {})
+
+        # Get data source (LIVE, QUOTE, or HISTORICAL)
+        data_source = stock_data.get("data_source", "HISTORICAL")
+
+        # Data source badge colors
+        source_colors = {
+            "LIVE": ("#00ff00", "🟢"),  # Bright green for live
+            "QUOTE": ("#ffcc00", "🟡"),  # Yellow for quote
+            "HISTORICAL": ("#ff6666", "🔴"),  # Red for historical
+        }
+        source_color, source_icon = source_colors.get(data_source, ("#ff6666", "🔴"))
+
+        # Format volume with K/M/Cr suffix
+        def format_volume(vol):
+            if vol >= 10000000:  # 1 Crore
+                return f"{vol / 10000000:.2f} Cr"
+            elif vol >= 100000:  # 1 Lakh
+                return f"{vol / 100000:.2f} L"
+            elif vol >= 1000:
+                return f"{vol / 1000:.2f} K"
+            else:
+                return str(vol)
+
+        # Timestamp and data source display
         timestamp_html = ""
         if last_updated:
-            timestamp_html = f'<div style="margin-bottom: 8px; font-size: 12px; opacity: 0.8;">🕐 <strong>Last Updated:</strong> {last_updated}</div>'
+            timestamp_html = f"""<div style="margin-bottom: 8px; font-size: 12px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="opacity: 0.8;">🕐 <strong>Updated:</strong> {last_updated}</span>
+                <span style="background: {source_color}; color: #000; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: bold;">{source_icon} {data_source}</span>
+            </div>"""
 
         if trend == "Bullish":
             # GREEN card
             st.markdown(
                 f"""
             <div style="background-color: #28a745; color: white; padding: 15px; border-radius: 8px; margin: 10px 0;">
+                <div style="margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid rgba(255,255,255,0.3);">
+                    <div style="font-size: 18px; font-weight: bold;">🏢 {symbol}</div>
+                    <div style="font-size: 12px; opacity: 0.9;">{name}</div>
+                </div>
                 {timestamp_html}
-                <div style="margin-bottom: 8px;">🔥 <strong>Price:</strong> ₹{stock_data["current_price"]:,.2f}</div>
-                <div style="margin-bottom: 8px;">📈 <strong>Today's High:</strong> ₹{stock_data["high_price"]:,.2f}</div>
-                <div style="margin-bottom: 8px;">📉 <strong>Today's Low:</strong> ₹{low_price:,.2f}</div>
-                <div style="margin-bottom: 8px;">☁️ <strong>Cloud (Senkou B):</strong> ₹{stock_data["senkou_span_b"]:,.2f}</div>
-                <div style="margin-bottom: 8px;">📊 <strong>MACD Hist (Today):</strong> {stock_data["macd_hist"]}</div>
-                <div style="margin-bottom: 8px;">📊 <strong>MACD Hist (Previous):</strong> {stock_data["prev_macd_hist"]}</div>
-                <div style="margin-bottom: 8px;">💪 <strong>Intraday Strength (High-Close):</strong></div>
-                <div style="margin-bottom: 8px; font-size: 18px;">{stock_data["intraday_strength_pct"]:.4f}%</div>
-                <hr style="border-color: rgba(255,255,255,0.3);">
-                <div style="margin-bottom: 8px;">📊 <strong>MACD Hist. Diff (Last 5 Days):</strong></div>
-                <div style="margin-bottom: 3px;"><strong>**Day 1 (T-Y)**:</strong> <span style="color: {"#90EE90" if macd_diffs[0] > 0 else "#FFB6C1"};">●</span> {macd_diffs[0]}</div>
-                <div style="margin-bottom: 3px;"><strong>**Day 2 (Y-2A)**:</strong> <span style="color: {"#90EE90" if macd_diffs[1] > 0 else "#FFB6C1"};">●</span> {macd_diffs[1]}</div>
-                <div style="margin-bottom: 3px;"><strong>**Day 3 (2A-3A)**:</strong> <span style="color: {"#90EE90" if macd_diffs[2] > 0 else "#FFB6C1"};">●</span> {macd_diffs[2]}</div>
-                <div style="margin-bottom: 3px;"><strong>**Day 4 (3A-4A)**:</strong> <span style="color: {"#90EE90" if macd_diffs[3] > 0 else "#FFB6C1"};">●</span> {macd_diffs[3]}</div>
-                <div style="margin-bottom: 3px;"><strong>**Day 5 (4A-5A)**:</strong> <span style="color: {"#90EE90" if macd_diffs[4] > 0 else "#FFB6C1"};">●</span> {macd_diffs[4]}</div>
+                <div style="background: rgba(255,255,255,0.15); padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <div style="font-size: 11px; opacity: 0.9; margin-bottom: 5px;">📏 <strong>SORTING METRIC (Close - Low):</strong></div>
+                    <div style="font-size: 20px; font-weight: bold;">₹{proximity_to_low:,.2f}</div>
+                </div>
+                <hr style="border-color: rgba(255,255,255,0.3); margin: 10px 0;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+                    <div style="margin-bottom: 5px;">📖 <strong>Open:</strong> ₹{open_price:,.2f}</div>
+                    <div style="margin-bottom: 5px;">🔥 <strong>Close:</strong> ₹{stock_data["current_price"]:,.2f}</div>
+                    <div style="margin-bottom: 5px;">📈 <strong>High:</strong> ₹{stock_data["high_price"]:,.2f}</div>
+                    <div style="margin-bottom: 5px;">📉 <strong>Low:</strong> ₹{low_price:,.2f}</div>
+                    <div style="margin-bottom: 5px;">⏮️ <strong>Prev Close:</strong> ₹{prev_close:,.2f}</div>
+                    <div style="margin-bottom: 5px;">⚖️ <strong>ATP:</strong> ₹{avg_trade_price:,.2f}</div>
+                </div>
+                <div style="margin-bottom: 8px;">📊 <strong>Volume:</strong> {format_volume(volume)}</div>
+                <hr style="border-color: rgba(255,255,255,0.3); margin: 10px 0;">
+                <div style="margin-bottom: 8px;">☁️ <strong>Senkou A:</strong> ₹{stock_data.get("senkou_span_a", 0):,.2f} | <strong>Senkou B:</strong> ₹{stock_data["senkou_span_b"]:,.2f}</div>
+                <div style="margin-bottom: 8px;">📊 <strong>MACD Hist:</strong> {stock_data["macd_hist"]} (Prev: {stock_data["prev_macd_hist"]})</div>
+                <hr style="border-color: rgba(255,255,255,0.3); margin: 10px 0;">
+                <div style="margin-bottom: 8px;"><strong>📊 MACD Hist. Diff (Last 5 Days):</strong></div>
+                <div style="font-size: 12px;">
+                    <span style="margin-right: 8px;">D1: <span style="color: {"#90EE90" if macd_diffs[0] > 0 else "#FFB6C1"};">●</span>{macd_diffs[0]}</span>
+                    <span style="margin-right: 8px;">D2: <span style="color: {"#90EE90" if macd_diffs[1] > 0 else "#FFB6C1"};">●</span>{macd_diffs[1]}</span>
+                    <span style="margin-right: 8px;">D3: <span style="color: {"#90EE90" if macd_diffs[2] > 0 else "#FFB6C1"};">●</span>{macd_diffs[2]}</span>
+                    <span style="margin-right: 8px;">D4: <span style="color: {"#90EE90" if macd_diffs[3] > 0 else "#FFB6C1"};">●</span>{macd_diffs[3]}</span>
+                    <span>D5: <span style="color: {"#90EE90" if macd_diffs[4] > 0 else "#FFB6C1"};">●</span>{macd_diffs[4]}</span>
+                </div>
+                <hr style="border-color: rgba(255,255,255,0.3); margin: 10px 0;">
+                <div style="font-size: 11px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 5px;">
+                    <div style="margin-bottom: 3px;"><strong>Signal Checks:</strong></div>
+                    <div>Chikou: {"✅" if signal_conditions.get("chikou_bullish") else "❌"} | Cloud Pos: {"✅" if signal_conditions.get("cloud_position_bullish") else "❌"} | Cloud Color: {"✅" if signal_conditions.get("cloud_color_bullish") else "❌"} | MACD: {"✅" if signal_conditions.get("macd_bullish") else "❌"}</div>
+                </div>
             </div>
             """,
                 unsafe_allow_html=True,
             )
             st.caption(
-                "✅ Criteria: Price > Senkou B AND MACD Hist > 0 AND MACD Hist is Increasing"
+                "✅ Bullish: Chikou > 26 periods ago AND Price > Cloud AND Green Cloud AND MACD > 0"
             )
 
         elif trend == "Bearish":
@@ -4139,57 +4486,98 @@ def render_stock_card(stock_data, card_index, trend_type):
             st.markdown(
                 f"""
             <div style="background-color: #dc3545; color: white; padding: 15px; border-radius: 8px; margin: 10px 0;">
+                <div style="margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid rgba(255,255,255,0.3);">
+                    <div style="font-size: 18px; font-weight: bold;">🏢 {symbol}</div>
+                    <div style="font-size: 12px; opacity: 0.9;">{name}</div>
+                </div>
                 {timestamp_html}
-                <div style="margin-bottom: 8px;">🔥 <strong>Price:</strong> ₹{stock_data["current_price"]:,.2f}</div>
-                <div style="margin-bottom: 8px;">📈 <strong>Today's High:</strong> ₹{stock_data["high_price"]:,.2f}</div>
-                <div style="margin-bottom: 8px;">📉 <strong>Today's Low:</strong> ₹{low_price:,.2f}</div>
-                <div style="margin-bottom: 8px;">☁️ <strong>Cloud (Senkou B):</strong> ₹{stock_data["senkou_span_b"]:,.2f}</div>
-                <div style="margin-bottom: 8px;">📊 <strong>MACD Hist (Today):</strong> {stock_data["macd_hist"]}</div>
-                <div style="margin-bottom: 8px;">📊 <strong>MACD Hist (Previous):</strong> {stock_data["prev_macd_hist"]}</div>
-                <div style="margin-bottom: 8px;">💪 <strong>Intraday Strength (High-Close):</strong></div>
-                <div style="margin-bottom: 8px; font-size: 18px;">{stock_data["intraday_strength_pct"]:.4f}%</div>
-                <hr style="border-color: rgba(255,255,255,0.3);">
-                <div style="margin-bottom: 8px;">📊 <strong>MACD Hist. Diff (Last 5 Days):</strong></div>
-                <div style="margin-bottom: 3px;"><strong>**Day 1 (T-Y)**:</strong> <span style="color: {"#90EE90" if macd_diffs[0] > 0 else "#FFB6C1"};">●</span> {macd_diffs[0]}</div>
-                <div style="margin-bottom: 3px;"><strong>**Day 2 (Y-2A)**:</strong> <span style="color: {"#90EE90" if macd_diffs[1] > 0 else "#FFB6C1"};">●</span> {macd_diffs[1]}</div>
-                <div style="margin-bottom: 3px;"><strong>**Day 3 (2A-3A)**:</strong> <span style="color: {"#90EE90" if macd_diffs[2] > 0 else "#FFB6C1"};">●</span> {macd_diffs[2]}</div>
-                <div style="margin-bottom: 3px;"><strong>**Day 4 (3A-4A)**:</strong> <span style="color: {"#90EE90" if macd_diffs[3] > 0 else "#FFB6C1"};">●</span> {macd_diffs[3]}</div>
-                <div style="margin-bottom: 3px;"><strong>**Day 5 (4A-5A)**:</strong> <span style="color: {"#90EE90" if macd_diffs[4] > 0 else "#FFB6C1"};">●</span> {macd_diffs[4]}</div>
+                <div style="background: rgba(255,255,255,0.15); padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <div style="font-size: 11px; opacity: 0.9; margin-bottom: 5px;">📏 <strong>SORTING METRIC (High - Close):</strong></div>
+                    <div style="font-size: 20px; font-weight: bold;">₹{proximity_to_high:,.2f}</div>
+                </div>
+                <hr style="border-color: rgba(255,255,255,0.3); margin: 10px 0;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+                    <div style="margin-bottom: 5px;">📖 <strong>Open:</strong> ₹{open_price:,.2f}</div>
+                    <div style="margin-bottom: 5px;">🔥 <strong>Close:</strong> ₹{stock_data["current_price"]:,.2f}</div>
+                    <div style="margin-bottom: 5px;">📈 <strong>High:</strong> ₹{stock_data["high_price"]:,.2f}</div>
+                    <div style="margin-bottom: 5px;">📉 <strong>Low:</strong> ₹{low_price:,.2f}</div>
+                    <div style="margin-bottom: 5px;">⏮️ <strong>Prev Close:</strong> ₹{prev_close:,.2f}</div>
+                    <div style="margin-bottom: 5px;">⚖️ <strong>ATP:</strong> ₹{avg_trade_price:,.2f}</div>
+                </div>
+                <div style="margin-bottom: 8px;">📊 <strong>Volume:</strong> {format_volume(volume)}</div>
+                <hr style="border-color: rgba(255,255,255,0.3); margin: 10px 0;">
+                <div style="margin-bottom: 8px;">☁️ <strong>Senkou A:</strong> ₹{stock_data.get("senkou_span_a", 0):,.2f} | <strong>Senkou B:</strong> ₹{stock_data["senkou_span_b"]:,.2f}</div>
+                <div style="margin-bottom: 8px;">📊 <strong>MACD Hist:</strong> {stock_data["macd_hist"]} (Prev: {stock_data["prev_macd_hist"]})</div>
+                <hr style="border-color: rgba(255,255,255,0.3); margin: 10px 0;">
+                <div style="margin-bottom: 8px;"><strong>📊 MACD Hist. Diff (Last 5 Days):</strong></div>
+                <div style="font-size: 12px;">
+                    <span style="margin-right: 8px;">D1: <span style="color: {"#90EE90" if macd_diffs[0] > 0 else "#FFB6C1"};">●</span>{macd_diffs[0]}</span>
+                    <span style="margin-right: 8px;">D2: <span style="color: {"#90EE90" if macd_diffs[1] > 0 else "#FFB6C1"};">●</span>{macd_diffs[1]}</span>
+                    <span style="margin-right: 8px;">D3: <span style="color: {"#90EE90" if macd_diffs[2] > 0 else "#FFB6C1"};">●</span>{macd_diffs[2]}</span>
+                    <span style="margin-right: 8px;">D4: <span style="color: {"#90EE90" if macd_diffs[3] > 0 else "#FFB6C1"};">●</span>{macd_diffs[3]}</span>
+                    <span>D5: <span style="color: {"#90EE90" if macd_diffs[4] > 0 else "#FFB6C1"};">●</span>{macd_diffs[4]}</span>
+                </div>
+                <hr style="border-color: rgba(255,255,255,0.3); margin: 10px 0;">
+                <div style="font-size: 11px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 5px;">
+                    <div style="margin-bottom: 3px;"><strong>Signal Checks:</strong></div>
+                    <div>Chikou: {"✅" if signal_conditions.get("chikou_bearish") else "❌"} | Cloud Pos: {"✅" if signal_conditions.get("cloud_position_bearish") else "❌"} | Cloud Color: {"✅" if signal_conditions.get("cloud_color_bearish") else "❌"} | MACD: {"✅" if signal_conditions.get("macd_bearish") else "❌"}</div>
+                </div>
             </div>
             """,
                 unsafe_allow_html=True,
             )
             st.caption(
-                "🔻 Criteria: Price < Senkou B AND MACD Hist < 0 AND MACD Hist is Decreasing"
+                "🔻 Bearish: Chikou < 26 periods ago AND Price < Cloud AND Red Cloud AND MACD < 0"
             )
 
         else:
-            # WHITE/GRAY card for Neutral
+            # NEUTRAL/MIXED card - Dark mode compatible (gray with white text)
             st.markdown(
                 f"""
-            <div style="background-color: #f8f9fa; color: #333; padding: 15px; border-radius: 8px; margin: 10px 0; border: 1px solid #dee2e6;">
-                {timestamp_html.replace("opacity: 0.8", "opacity: 0.6; color: #666")}
-                <div style="margin-bottom: 8px;">🔥 <strong>Price:</strong> ₹{stock_data["current_price"]:,.2f}</div>
-                <div style="margin-bottom: 8px;">📈 <strong>Today's High:</strong> ₹{stock_data["high_price"]:,.2f}</div>
-                <div style="margin-bottom: 8px;">📉 <strong>Today's Low:</strong> ₹{low_price:,.2f}</div>
-                <div style="margin-bottom: 8px;">☁️ <strong>Cloud (Senkou B):</strong> ₹{stock_data["senkou_span_b"]:,.2f}</div>
-                <div style="margin-bottom: 8px;">📊 <strong>MACD Hist (Today):</strong> {stock_data["macd_hist"]}</div>
-                <div style="margin-bottom: 8px;">📊 <strong>MACD Hist (Previous):</strong> {stock_data["prev_macd_hist"]}</div>
-                <div style="margin-bottom: 8px;">💪 <strong>Intraday Strength (High-Close):</strong></div>
-                <div style="margin-bottom: 8px; font-size: 18px;">{stock_data["intraday_strength_pct"]:.4f}%</div>
-                <hr style="border-color: #dee2e6;">
-                <div style="margin-bottom: 8px;">📊 <strong>MACD Hist. Diff (Last 5 Days):</strong></div>
-                <div style="margin-bottom: 3px;"><strong>**Day 1 (T-Y)**:</strong> <span style="color: {"#28a745" if macd_diffs[0] > 0 else "#dc3545"};">●</span> {macd_diffs[0]}</div>
-                <div style="margin-bottom: 3px;"><strong>**Day 2 (Y-2A)**:</strong> <span style="color: {"#28a745" if macd_diffs[1] > 0 else "#dc3545"};">●</span> {macd_diffs[1]}</div>
-                <div style="margin-bottom: 3px;"><strong>**Day 3 (2A-3A)**:</strong> <span style="color: {"#28a745" if macd_diffs[2] > 0 else "#dc3545"};">●</span> {macd_diffs[2]}</div>
-                <div style="margin-bottom: 3px;"><strong>**Day 4 (3A-4A)**:</strong> <span style="color: {"#28a745" if macd_diffs[3] > 0 else "#dc3545"};">●</span> {macd_diffs[3]}</div>
-                <div style="margin-bottom: 3px;"><strong>**Day 5 (4A-5A)**:</strong> <span style="color: {"#28a745" if macd_diffs[4] > 0 else "#dc3545"};">●</span> {macd_diffs[4]}</div>
+            <div style="background-color: #495057; color: #ffffff; padding: 15px; border-radius: 8px; margin: 10px 0; border: 1px solid #6c757d;">
+                <div style="margin-bottom: 10px; padding-bottom: 8px; border-bottom: 2px solid rgba(255,255,255,0.3);">
+                    <div style="font-size: 18px; font-weight: bold;">🏢 {symbol}</div>
+                    <div style="font-size: 12px; opacity: 0.9;">{name}</div>
+                </div>
+                {timestamp_html}
+                <div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 5px; margin-bottom: 10px;">
+                    <div style="font-size: 11px; opacity: 0.9; margin-bottom: 5px;">📏 <strong>Proximity to Low:</strong> ₹{proximity_to_low:,.2f} | <strong>Proximity to High:</strong> ₹{proximity_to_high:,.2f}</div>
+                </div>
+                <hr style="border-color: rgba(255,255,255,0.3); margin: 10px 0;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+                    <div style="margin-bottom: 5px;">📖 <strong>Open:</strong> ₹{open_price:,.2f}</div>
+                    <div style="margin-bottom: 5px;">🔥 <strong>Close:</strong> ₹{stock_data["current_price"]:,.2f}</div>
+                    <div style="margin-bottom: 5px;">📈 <strong>High:</strong> ₹{stock_data["high_price"]:,.2f}</div>
+                    <div style="margin-bottom: 5px;">📉 <strong>Low:</strong> ₹{low_price:,.2f}</div>
+                    <div style="margin-bottom: 5px;">⏮️ <strong>Prev Close:</strong> ₹{prev_close:,.2f}</div>
+                    <div style="margin-bottom: 5px;">⚖️ <strong>ATP:</strong> ₹{avg_trade_price:,.2f}</div>
+                </div>
+                <div style="margin-bottom: 8px;">📊 <strong>Volume:</strong> {format_volume(volume)}</div>
+                <hr style="border-color: rgba(255,255,255,0.3); margin: 10px 0;">
+                <div style="margin-bottom: 8px;">☁️ <strong>Senkou A:</strong> ₹{stock_data.get("senkou_span_a", 0):,.2f} | <strong>Senkou B:</strong> ₹{stock_data["senkou_span_b"]:,.2f}</div>
+                <div style="margin-bottom: 8px;">📊 <strong>MACD Hist:</strong> {stock_data["macd_hist"]} (Prev: {stock_data["prev_macd_hist"]})</div>
+                <hr style="border-color: rgba(255,255,255,0.3); margin: 10px 0;">
+                <div style="margin-bottom: 8px;"><strong>📊 MACD Hist. Diff (Last 5 Days):</strong></div>
+                <div style="font-size: 12px;">
+                    <span style="margin-right: 8px;">D1: <span style="color: {"#90EE90" if macd_diffs[0] > 0 else "#FFB6C1"};">●</span>{macd_diffs[0]}</span>
+                    <span style="margin-right: 8px;">D2: <span style="color: {"#90EE90" if macd_diffs[1] > 0 else "#FFB6C1"};">●</span>{macd_diffs[1]}</span>
+                    <span style="margin-right: 8px;">D3: <span style="color: {"#90EE90" if macd_diffs[2] > 0 else "#FFB6C1"};">●</span>{macd_diffs[2]}</span>
+                    <span style="margin-right: 8px;">D4: <span style="color: {"#90EE90" if macd_diffs[3] > 0 else "#FFB6C1"};">●</span>{macd_diffs[3]}</span>
+                    <span>D5: <span style="color: {"#90EE90" if macd_diffs[4] > 0 else "#FFB6C1"};">●</span>{macd_diffs[4]}</span>
+                </div>
+                <hr style="border-color: rgba(255,255,255,0.3); margin: 10px 0;">
+                <div style="font-size: 11px; background: rgba(255,255,255,0.1); padding: 8px; border-radius: 5px;">
+                    <div style="margin-bottom: 3px;"><strong>Signal Checks (Bullish):</strong></div>
+                    <div>Chikou: {"✅" if signal_conditions.get("chikou_bullish") else "❌"} | Cloud Pos: {"✅" if signal_conditions.get("cloud_position_bullish") else "❌"} | Cloud Color: {"✅" if signal_conditions.get("cloud_color_bullish") else "❌"} | MACD: {"✅" if signal_conditions.get("macd_bullish") else "❌"}</div>
+                    <div style="margin-top: 5px; margin-bottom: 3px;"><strong>Signal Checks (Bearish):</strong></div>
+                    <div>Chikou: {"✅" if signal_conditions.get("chikou_bearish") else "❌"} | Cloud Pos: {"✅" if signal_conditions.get("cloud_position_bearish") else "❌"} | Cloud Color: {"✅" if signal_conditions.get("cloud_color_bearish") else "❌"} | MACD: {"✅" if signal_conditions.get("macd_bearish") else "❌"}</div>
+                </div>
             </div>
             """,
                 unsafe_allow_html=True,
             )
             st.caption(
-                "⚪ Mixed signals or fails one of the strict Bullish/Bearish criteria."
+                "⚪ Mixed: Does not meet all 4 criteria for Bullish or Bearish signal."
             )
 
 
@@ -4537,13 +4925,29 @@ def screening_page():
 
     st.sidebar.markdown("---")
 
-    # Auto-refresh toggle
+    # Auto-refresh toggle with interval control
     st.sidebar.subheader("🔄 Auto Refresh")
     auto_refresh = st.sidebar.checkbox(
-        "Enable Auto Refresh", value=True, key="auto_refresh_toggle"
+        "Enable Auto Refresh", value=False, key="auto_refresh_toggle"
     )
+
     if auto_refresh:
-        st.sidebar.info(f"⏱️ Refreshing every {AUTO_REFRESH_INTERVAL} seconds")
+        # Allow user to control refresh interval
+        refresh_interval = st.sidebar.slider(
+            "Refresh Interval (seconds)",
+            min_value=10,
+            max_value=120,
+            value=30,  # Default 30 seconds
+            step=10,
+            key="refresh_interval_slider",
+        )
+        # Store in session state for use in refresh logic
+        st.session_state.refresh_interval = refresh_interval
+        st.sidebar.info(f"⏱️ Auto-refreshing every {refresh_interval} seconds")
+        st.sidebar.caption("💡 Higher interval = less screen flicker")
+    else:
+        st.sidebar.caption("🔘 Manual refresh only - use button below")
+        st.session_state.refresh_interval = 0
 
     st.sidebar.markdown("---")
     if st.sidebar.button("📋 Reload Stock List", width="stretch"):
@@ -4639,30 +5043,39 @@ def screening_page():
         last_refresh_str = ist_time.strftime("%Y-%m-%d %H:%M:%S IST")
         st.caption(f"📅 Last Refreshed: {last_refresh_str}")
 
-    # Auto-refresh every 10 seconds (silent background refresh)
-    # Data updates without page reload or white screen
-    if (
-        auto_refresh
-        and st.session_state.last_refresh_time
-        and st.session_state.stock_list_data
-    ):
-        time_since_refresh = (
-            datetime.now(IST) - st.session_state.last_refresh_time.replace(tzinfo=IST)
-        ).total_seconds()
+    # Auto-refresh with anti-flash CSS
+    # The key is to set background color during refresh to prevent white flash
+    refresh_interval = st.session_state.get("refresh_interval", AUTO_REFRESH_INTERVAL)
 
-        try:
-            from streamlit_autorefresh import st_autorefresh
+    if auto_refresh and st.session_state.stock_list_data and refresh_interval > 0:
+        # Add CSS to prevent white flash during refresh
+        st.markdown(
+            """
+            <style>
+            /* Prevent white flash during Streamlit rerun */
+            .stApp, .main, [data-testid="stAppViewContainer"],
+            [data-testid="stHeader"], body, html {
+                background-color: #0e1117 !important;
+            }
+            /* Smooth transition for content updates */
+            .element-container, .stMarkdown, [data-testid="column"] {
+                transition: opacity 0.1s ease-in-out;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
 
-            # st_autorefresh handles timing - Streamlit reruns smoothly without white flash
-            count = st_autorefresh(
-                interval=AUTO_REFRESH_INTERVAL * 1000,
-                limit=None,
-                key="data_refresh_timer",
-            )
+        # Check if it's time to refresh data
+        if st.session_state.last_refresh_time:
+            time_since_refresh = (
+                datetime.now(IST)
+                - st.session_state.last_refresh_time.replace(tzinfo=IST)
+            ).total_seconds()
 
-            # When it's time to refresh, update data
-            if count > 0:
-                # Refresh data silently (no spinner to avoid flash)
+            # Only fetch new data if interval has passed
+            if time_since_refresh >= refresh_interval:
+                # Silently refresh data without any UI feedback
                 results = background_refresh_data(
                     stock_list,
                     api,
@@ -4673,15 +5086,33 @@ def screening_page():
                 if results:
                     st.session_state.stock_list_data = results
                     st.session_state.last_refresh_time = datetime.now(IST)
+
+        # Use streamlit-autorefresh for smooth timed refresh
+        try:
+            from streamlit_autorefresh import st_autorefresh
+
+            # This component handles the refresh timing smoothly
+            st_autorefresh(
+                interval=refresh_interval * 1000,
+                limit=None,
+                key="smooth_data_refresh",
+            )
         except ImportError:
-            # Without streamlit-autorefresh, we can't do smooth background refresh
-            # Show instruction to install
-            st.info(
-                "💡 For smooth auto-refresh without screen flash, install: `pip install streamlit-autorefresh`"
+            # Fallback: Use meta refresh (less smooth but functional)
+            st.markdown(
+                f"""
+                <meta http-equiv="refresh" content="{refresh_interval}">
+                """,
+                unsafe_allow_html=True,
             )
 
-            # Add manual refresh button as fallback
-            if st.button("🔄 Refresh Now", key="manual_refresh_btn"):
+    # Results header with manual refresh button
+    results_col1, results_col2 = st.columns([4, 1])
+    with results_col1:
+        st.markdown("## Results 🔗")
+    with results_col2:
+        if st.button("🔄 Refresh", key="manual_refresh_btn", type="secondary"):
+            with st.spinner("Refreshing..."):
                 results = background_refresh_data(
                     stock_list,
                     api,
@@ -4693,9 +5124,6 @@ def screening_page():
                     st.session_state.stock_list_data = results
                     st.session_state.last_refresh_time = datetime.now(IST)
                     st.rerun()
-
-    # Results header
-    st.markdown("## Results 🔗")
 
     # Check if we have data
     if not st.session_state.stock_list_data:
@@ -4737,17 +5165,19 @@ def screening_page():
         s for s in st.session_state.stock_list_data if s["trend"] == "Neutral/Mixed"
     ]
 
-    # Sort by intraday strength (High to Low)
-    bullish_stocks.sort(key=lambda x: x["intraday_strength_pct"], reverse=True)
-    bearish_stocks.sort(key=lambda x: x["intraday_strength_pct"], reverse=True)
-    neutral_stocks.sort(key=lambda x: x["intraday_strength_pct"], reverse=True)
+    # Sort by proximity metrics (Ascending - smallest at top = best entry)
+    # Bullish: Close - Low (smaller = price closer to day's low)
+    # Bearish: High - Close (smaller = price closer to day's high)
+    bullish_stocks.sort(key=lambda x: x.get("proximity_to_low", float("inf")))
+    bearish_stocks.sort(key=lambda x: x.get("proximity_to_high", float("inf")))
+    neutral_stocks.sort(key=lambda x: x.get("proximity_to_low", float("inf")))
 
     # Three column layout
     col1, col2, col3 = st.columns(3)
 
     with col1:
         st.markdown(f"### 🟢 Bullish Signals ({len(bullish_stocks)})")
-        st.caption("Sorted by Intraday Strength (High to Low)")
+        st.caption("Sorted by Proximity to Low (Close - Low) ↑")
         if bullish_stocks:
             for i, stock in enumerate(bullish_stocks):
                 render_stock_card(stock, i, "bullish")
@@ -4756,7 +5186,7 @@ def screening_page():
 
     with col2:
         st.markdown(f"### 🔴 Bearish Signals ({len(bearish_stocks)})")
-        st.caption("Sorted by Intraday Strength (High to Low)")
+        st.caption("Sorted by Proximity to High (High - Close) ↑")
         if bearish_stocks:
             for i, stock in enumerate(bearish_stocks):
                 render_stock_card(stock, i, "bearish")
@@ -4765,7 +5195,7 @@ def screening_page():
 
     with col3:
         st.markdown(f"### 🟡 Neutral/Mixed ({len(neutral_stocks)})")
-        st.caption("Sorted by Intraday Strength (High to Low)")
+        st.caption("Sorted by Proximity to Low (Close - Low) ↑")
         if neutral_stocks:
             for i, stock in enumerate(neutral_stocks):
                 render_stock_card(stock, i, "neutral")
