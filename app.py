@@ -3734,62 +3734,39 @@ def inject_custom_css():
         <style>
         /* ==================== DARK MODE ==================== */
 
-        /* Hide Streamlit header completely (removes Deploy button and M initial) */
-        header[data-testid="stHeader"] {
-            display: none !important;
-            visibility: hidden !important;
-            height: 0 !important;
-            position: absolute !important;
-            top: -1000px !important;
+        /* FORCE SIDEBAR TO BE VISIBLE AND EXPANDED */
+        [data-testid="stSidebar"] {
+            background-color: #1a1a2e !important;
+            min-width: 250px !important;
+            width: 300px !important;
         }
 
-        /* Hide main menu button */
-        #MainMenu {
-            display: none !important;
-            visibility: hidden !important;
+        [data-testid="stSidebar"][aria-expanded="false"] {
+            min-width: 250px !important;
+            width: 300px !important;
+            margin-left: 0 !important;
         }
 
-        /* Hide footer */
+        /* Ensure sidebar content is visible */
+        [data-testid="stSidebarContent"] {
+            display: block !important;
+            visibility: visible !important;
+        }
+
+        /* Sidebar collapse button - make it visible */
+        [data-testid="stSidebarCollapseButton"] {
+            display: block !important;
+            visibility: visible !important;
+        }
+
+        /* Hide only specific Streamlit branding elements (not header) */
         footer {
             display: none !important;
             visibility: hidden !important;
         }
 
-        /* Hide deploy button */
         .stDeployButton {
             display: none !important;
-            visibility: hidden !important;
-        }
-
-        /* Hide toolbar */
-        [data-testid="stToolbar"] {
-            display: none !important;
-            visibility: hidden !important;
-        }
-
-        /* Hide the top-right buttons container */
-        .stApp header {
-            display: none !important;
-        }
-
-        /* Hide Streamlit Cloud avatar/profile button */
-        [data-testid="stAppViewerModeButton"],
-        [data-testid="stStatusWidget"],
-        [data-testid="stDecoration"],
-        .viewerBadge_container__1QSob,
-        .viewerBadge_link__1S137,
-        #stDecoration,
-        button[kind="header"] {
-            display: none !important;
-            visibility: hidden !important;
-        }
-
-        /* Hide any remaining header elements */
-        .stApp > header,
-        div[data-testid="stHeader"],
-        section[data-testid="stHeader"] {
-            display: none !important;
-            height: 0 !important;
             visibility: hidden !important;
         }
 
@@ -3797,11 +3774,6 @@ def inject_custom_css():
         .stApp, .main, .block-container {
             background-color: #0e1117 !important;
             color: #fafafa !important;
-        }
-
-        /* Sidebar */
-        [data-testid="stSidebar"] {
-            background-color: #1a1a2e !important;
         }
 
         [data-testid="stSidebar"] * {
@@ -4192,62 +4164,33 @@ def inject_custom_css():
         st.markdown(
             """
         <style>
-        /* Hide Streamlit header completely (removes Deploy button and M initial) */
-        header[data-testid="stHeader"] {
-            display: none !important;
-            visibility: hidden !important;
-            height: 0 !important;
-            position: absolute !important;
-            top: -1000px !important;
+        /* FORCE SIDEBAR TO BE VISIBLE AND EXPANDED */
+        [data-testid="stSidebar"] {
+            background-color: #f8f9fa !important;
+            min-width: 250px !important;
+            width: 300px !important;
         }
 
-        /* Hide main menu button */
-        #MainMenu {
-            display: none !important;
-            visibility: hidden !important;
+        [data-testid="stSidebar"][aria-expanded="false"] {
+            min-width: 250px !important;
+            width: 300px !important;
+            margin-left: 0 !important;
         }
 
-        /* Hide footer */
+        /* Ensure sidebar content is visible */
+        [data-testid="stSidebarContent"] {
+            display: block !important;
+            visibility: visible !important;
+        }
+
+        /* Hide only specific branding elements */
         footer {
             display: none !important;
             visibility: hidden !important;
         }
 
-        /* Hide deploy button */
         .stDeployButton {
             display: none !important;
-            visibility: hidden !important;
-        }
-
-        /* Hide toolbar */
-        [data-testid="stToolbar"] {
-            display: none !important;
-            visibility: hidden !important;
-        }
-
-        /* Hide the top-right buttons container */
-        .stApp header {
-            display: none !important;
-        }
-
-        /* Hide Streamlit Cloud avatar/profile button */
-        [data-testid="stAppViewerModeButton"],
-        [data-testid="stStatusWidget"],
-        [data-testid="stDecoration"],
-        .viewerBadge_container__1QSob,
-        .viewerBadge_link__1S137,
-        #stDecoration,
-        button[kind="header"] {
-            display: none !important;
-            visibility: hidden !important;
-        }
-
-        /* Hide any remaining header elements */
-        .stApp > header,
-        div[data-testid="stHeader"],
-        section[data-testid="stHeader"] {
-            display: none !important;
-            height: 0 !important;
             visibility: hidden !important;
         }
 
@@ -4688,43 +4631,11 @@ def screening_page():
         dropdown_text = "#333333"
         dropdown_border = "#dadce0"
 
-    # Simple CSS for dark mode header (removed fixed profile dropdown to avoid layout issues on hosted Streamlit)
-    st.markdown(
-        f"""
-    <style>
-    /* Hide default header white bar */
-    header[data-testid="stHeader"] {{
-        background-color: {"#0e1117" if is_dark else "#ffffff"} !important;
-    }}
-    </style>
-    """,
-        unsafe_allow_html=True,
-    )
+    # ============================================================
+    # SIDEBAR - RENDER FIRST to ensure visibility on Streamlit Cloud
+    # ============================================================
 
-    # Title row with Buy button only (profile is in sidebar)
-    title_col1, title_col2 = st.columns([5, 1])
-
-    with title_col1:
-        st.title("🏹 Ichimoku & MACD Stock Screener")
-
-    with title_col2:
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🛒 Buy 3", key="buy_3_items_btn", type="primary"):
-            st.session_state.show_buy_dialog = True
-
-    # Show Buy Dialog
-    if st.session_state.get("show_buy_dialog", False):
-        show_buy_dialog()
-
-    st.markdown(
-        "Filter stocks using **MACD Histogram** and **Ichimoku Cloud** with **live intraday data**."
-    )
-
-    token_manager = TokenManager()
-    api = UpstoxAPI(token_manager)
-
-    # Sidebar with Profile section at top
-    # Profile Avatar Header
+    # Profile Avatar Header in Sidebar
     st.sidebar.markdown(
         f"""
     <div style="text-align: center; padding: 15px 0; border-bottom: 1px solid {"#404040" if is_dark else "#e0e0e0"}; margin-bottom: 15px;">
@@ -4746,27 +4657,30 @@ def screening_page():
     )
 
     # Profile Menu Buttons
-    if st.sidebar.button("👤 My Profile", key="profile_btn_side", width="stretch"):
+    if st.sidebar.button(
+        "👤 My Profile", key="profile_btn_side", use_container_width=True
+    ):
         st.session_state.page = "profile"
         st.rerun()
 
     if user_role == "admin":
         if st.sidebar.button(
-            "👥 User Management", key="user_mgmt_btn_side", width="stretch"
+            "👥 User Management", key="user_mgmt_btn_side", use_container_width=True
         ):
             st.session_state.page = "user_management"
             st.rerun()
-    if user_role == "admin":
+
         if st.sidebar.button(
-            "🔐 Token Management", key="token_mgmt_btn_side", width="stretch"
+            "🔐 Token Management", key="token_mgmt_btn_side", use_container_width=True
         ):
             st.session_state.page = "token_management"
             st.rerun()
 
-    # Theme toggle
-    current_theme = "🌙 Dark Mode" if is_dark else "☀️ Light Mode"
+    # Dark Mode Toggle
     if st.sidebar.button(
-        f"🎨 Switch to {current_theme}", key="theme_toggle_side", width="stretch"
+        f"{'☀️ Switch to Light Mode' if is_dark else '🌙 Switch to Dark Mode'}",
+        key="dark_mode_toggle_side",
+        use_container_width=True,
     ):
         st.session_state.dark_mode = not st.session_state.dark_mode
         st.rerun()
@@ -4777,7 +4691,10 @@ def screening_page():
 
     if not st.session_state.confirm_logout:
         if st.sidebar.button(
-            "🚪 Logout", key="logout_btn_side", width="stretch", type="secondary"
+            "🚪 Logout",
+            key="logout_btn_side",
+            use_container_width=True,
+            type="secondary",
         ):
             st.session_state.confirm_logout = True
             st.rerun()
@@ -4846,7 +4763,7 @@ def screening_page():
         st.rerun()
 
     st.sidebar.markdown("---")
-    if st.sidebar.button("📋 Reload Stock List", width="stretch"):
+    if st.sidebar.button("📋 Reload Stock List", use_container_width=True):
         # Force re-insert all stocks from STOCK_LIST
         try:
             with get_db_connection() as conn:
@@ -4873,6 +4790,45 @@ def screening_page():
 
     stock_list = get_stock_list()
     st.sidebar.info(f"📊 Total Stocks: {len(stock_list)}")
+
+    # ============================================================
+    # MAIN CONTENT - After sidebar
+    # ============================================================
+
+    # Simple CSS for dark mode header
+    st.markdown(
+        f"""
+    <style>
+    /* Hide default header white bar */
+    header[data-testid="stHeader"] {{
+        background-color: {"#0e1117" if is_dark else "#ffffff"} !important;
+    }}
+    </style>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    # Title row with Buy button only (profile is in sidebar)
+    title_col1, title_col2 = st.columns([5, 1])
+
+    with title_col1:
+        st.title("🏹 Ichimoku & MACD Stock Screener")
+
+    with title_col2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🛒 Buy 3", key="buy_3_items_btn", type="primary"):
+            st.session_state.show_buy_dialog = True
+
+    # Show Buy Dialog
+    if st.session_state.get("show_buy_dialog", False):
+        show_buy_dialog()
+
+    st.markdown(
+        "Filter stocks using **MACD Histogram** and **Ichimoku Cloud** with **live intraday data**."
+    )
+
+    token_manager = TokenManager()
+    api = UpstoxAPI(token_manager)
 
     st.sidebar.markdown("---")
 
