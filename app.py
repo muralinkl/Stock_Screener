@@ -129,8 +129,6 @@ if "use_mock_data" not in st.session_state:
     st.session_state.use_mock_data = True
 if "expand_mode" not in st.session_state:
     st.session_state.expand_mode = "none"  # none, all, bullish, bearish
-if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = True  # Default to dark mode
 
 # Sample Stock List (NSE FO Stocks) - 211 Stocks
 STOCK_LIST = [
@@ -3200,28 +3198,17 @@ def show_buy_dialog():
     # Display selected stocks
     st.markdown("### 🎯 Selected Stocks for Trading")
 
-    # Check if dark mode is enabled
-    is_dark = st.session_state.get("dark_mode", False)
-
     for i, stock in enumerate(stocks_to_trade, 1):
         option_type = "CALL (CE)" if stock["trend"] == "Bullish" else "PUT (PE)"
         trend_color = "🟢" if stock["trend"] == "Bullish" else "🔴"
 
-        # Dark mode colors
-        if is_dark:
-            if stock["trend"] == "Bullish":
-                bg_color = "#1b5e20"  # Dark green
-                text_color = "#ffffff"
-            else:
-                bg_color = "#b71c1c"  # Dark red
-                text_color = "#ffffff"
+        # Light mode colors
+        if stock["trend"] == "Bullish":
+            bg_color = "#d4edda"  # Light green
+            text_color = "#155724"
         else:
-            if stock["trend"] == "Bullish":
-                bg_color = "#d4edda"  # Light green
-                text_color = "#155724"
-            else:
-                bg_color = "#f8d7da"  # Light red
-                text_color = "#721c24"
+            bg_color = "#f8d7da"  # Light red
+            text_color = "#721c24"
 
         st.markdown(
             f"""
@@ -3447,9 +3434,6 @@ def execute_trades_with_progress(stocks_to_trade, profit_target):
     # Display results
     st.markdown("### 📊 Trade Results")
 
-    # Check if dark mode is enabled
-    is_dark = st.session_state.get("dark_mode", False)
-
     success_count = sum(1 for r in results if r["status"] == "success")
     failed_count = len(results) - success_count
 
@@ -3461,17 +3445,11 @@ def execute_trades_with_progress(stocks_to_trade, profit_target):
     # Store results in session state for verification
     st.session_state.last_trade_results = results
 
-    # Dark mode colors
-    if is_dark:
-        success_bg = "#1b5e20"
-        success_text = "#ffffff"
-        error_bg = "#b71c1c"
-        error_text = "#ffffff"
-    else:
-        success_bg = "#d4edda"
-        success_text = "#155724"
-        error_bg = "#f8d7da"
-        error_text = "#721c24"
+    # Light mode colors
+    success_bg = "#d4edda"
+    success_text = "#155724"
+    error_bg = "#f8d7da"
+    error_text = "#721c24"
 
     for result in results:
         if result["status"] == "success":
@@ -3526,9 +3504,6 @@ def show_order_book():
     token_manager = TokenManager()
     api = UpstoxAPI(token_manager)
 
-    # Check if dark mode is enabled
-    is_dark = st.session_state.get("dark_mode", False)
-
     with st.spinner("Fetching order book..."):
         orders, error = api.get_order_book()
 
@@ -3552,45 +3527,25 @@ def show_order_book():
             price = order.get("price", 0)
             status = order.get("status", "N/A")
 
-            # Color based on status - dark mode aware
-            if is_dark:
-                if status == "complete":
-                    bg_color = "#1b5e20"
-                    text_color = "#ffffff"
-                    status_icon = "✅"
-                elif status == "open":
-                    bg_color = "#4a3f00"
-                    text_color = "#fff59d"
-                    status_icon = "⏳"
-                elif status == "cancelled":
-                    bg_color = "#b71c1c"
-                    text_color = "#ffffff"
-                    status_icon = "❌"
-                else:
-                    bg_color = "#37474f"
-                    text_color = "#ffffff"
-                    status_icon = "❓"
-                txn_color = "#81c784" if transaction_type == "BUY" else "#e57373"
-                detail_color = "#b0b0b0"
+            # Color based on status - light mode
+            if status == "complete":
+                bg_color = "#d4edda"
+                text_color = "#155724"
+                status_icon = "✅"
+            elif status == "open":
+                bg_color = "#fff3cd"
+                text_color = "#856404"
+                status_icon = "⏳"
+            elif status == "cancelled":
+                bg_color = "#f8d7da"
+                text_color = "#721c24"
+                status_icon = "❌"
             else:
-                if status == "complete":
-                    bg_color = "#d4edda"
-                    text_color = "#155724"
-                    status_icon = "✅"
-                elif status == "open":
-                    bg_color = "#fff3cd"
-                    text_color = "#856404"
-                    status_icon = "⏳"
-                elif status == "cancelled":
-                    bg_color = "#f8d7da"
-                    text_color = "#721c24"
-                    status_icon = "❌"
-                else:
-                    bg_color = "#e2e3e5"
-                    text_color = "#383d41"
-                    status_icon = "❓"
-                txn_color = "#28a745" if transaction_type == "BUY" else "#dc3545"
-                detail_color = "#555555"
+                bg_color = "#e2e3e5"
+                text_color = "#383d41"
+                status_icon = "❓"
+            txn_color = "#28a745" if transaction_type == "BUY" else "#dc3545"
+            detail_color = "#555555"
 
             st.markdown(
                 f"""
@@ -3632,9 +3587,6 @@ def show_positions():
 
         st.success(f"📊 Found **{len(positions)}** positions")
 
-        # Check if dark mode is enabled
-        is_dark = st.session_state.get("dark_mode", False)
-
         total_pnl = 0
 
         for pos in positions:
@@ -3646,41 +3598,23 @@ def show_positions():
 
             total_pnl += pnl
 
-            # Color based on P&L - dark mode aware
-            if is_dark:
-                if pnl > 0:
-                    bg_color = "#1b5e20"
-                    pnl_color = "#81c784"
-                    text_color = "#ffffff"
-                    pnl_icon = "📈"
-                elif pnl < 0:
-                    bg_color = "#b71c1c"
-                    pnl_color = "#e57373"
-                    text_color = "#ffffff"
-                    pnl_icon = "📉"
-                else:
-                    bg_color = "#37474f"
-                    pnl_color = "#b0b0b0"
-                    text_color = "#ffffff"
-                    pnl_icon = "➖"
-                detail_color = "#b0b0b0"
+            # Color based on P&L - light mode
+            if pnl > 0:
+                bg_color = "#d4edda"
+                pnl_color = "#28a745"
+                text_color = "#155724"
+                pnl_icon = "📈"
+            elif pnl < 0:
+                bg_color = "#f8d7da"
+                pnl_color = "#dc3545"
+                text_color = "#721c24"
+                pnl_icon = "📉"
             else:
-                if pnl > 0:
-                    bg_color = "#d4edda"
-                    pnl_color = "#28a745"
-                    text_color = "#155724"
-                    pnl_icon = "📈"
-                elif pnl < 0:
-                    bg_color = "#f8d7da"
-                    pnl_color = "#dc3545"
-                    text_color = "#721c24"
-                    pnl_icon = "📉"
-                else:
-                    bg_color = "#e2e3e5"
-                    pnl_color = "#6c757d"
-                    text_color = "#383d41"
-                    pnl_icon = "➖"
-                detail_color = "#555555"
+                bg_color = "#e2e3e5"
+                pnl_color = "#6c757d"
+                text_color = "#383d41"
+                pnl_icon = "➖"
+            detail_color = "#555555"
 
             pnl_pct = ((ltp - avg_price) / avg_price * 100) if avg_price > 0 else 0
 
@@ -3724,578 +3658,201 @@ def show_positions():
 
 # ----------------- Custom CSS -----------------
 def inject_custom_css():
-    """Inject custom CSS based on dark/light mode"""
-    is_dark = st.session_state.get("dark_mode", False)
-
-    if is_dark:
-        # Dark Mode CSS - Complete styling
-        st.markdown(
-            """
-        <style>
-        /* ==================== DARK MODE ==================== */
-
-        /* FORCE SIDEBAR TO BE VISIBLE AND EXPANDED */
-        [data-testid="stSidebar"] {
-            background-color: #1a1a2e !important;
-            min-width: 250px !important;
-            width: 300px !important;
-        }
-
-        [data-testid="stSidebar"][aria-expanded="false"] {
-            min-width: 250px !important;
-            width: 300px !important;
-            margin-left: 0 !important;
-        }
-
-        /* Ensure sidebar content is visible */
-        [data-testid="stSidebarContent"] {
-            display: block !important;
-            visibility: visible !important;
-        }
-
-        /* Sidebar collapse button - make it visible */
-        [data-testid="stSidebarCollapseButton"] {
-            display: block !important;
-            visibility: visible !important;
-        }
-
-        /* Hide only specific Streamlit branding elements (not header) */
-        footer {
-            display: none !important;
-            visibility: hidden !important;
-        }
-
-        .stDeployButton {
-            display: none !important;
-            visibility: hidden !important;
-        }
-
-        /* Main App Background */
-        .stApp, .main, .block-container {
-            background-color: #0e1117 !important;
-            color: #fafafa !important;
-        }
-
-        [data-testid="stSidebar"] * {
-            color: #fafafa !important;
-        }
-
-        [data-testid="stSidebar"] .stMarkdown {
-            color: #fafafa !important;
-        }
-
-        /* All Text Elements */
-        h1, h2, h3, h4, h5, h6,
-        .stMarkdown, .stMarkdown p, .stMarkdown span,
-        .stText, p, span, label, div {
-            color: #fafafa !important;
-        }
-
-        /* Expander Headers */
-        .streamlit-expanderHeader {
-            background-color: #262730 !important;
-            color: #fafafa !important;
-            border-radius: 8px;
-        }
-
-        .streamlit-expanderHeader p,
-        .streamlit-expanderHeader span,
-        .streamlit-expanderHeader div {
-            color: #fafafa !important;
-        }
-
-        /* Expander Content */
-        .streamlit-expanderContent {
-            background-color: #1a1a2e !important;
-            color: #fafafa !important;
-            border: 1px solid #333 !important;
-        }
-
-        .streamlit-expanderContent * {
-            color: #fafafa !important;
-        }
-
-        /* Buttons */
-        .stButton > button {
-            background-color: #3d5a80 !important;
-            color: #ffffff !important;
-            border: 1px solid #4a6fa5 !important;
-        }
-
-        .stButton > button:hover {
-            background-color: #4a6fa5 !important;
-            border-color: #5a7fb5 !important;
-        }
-
-        /* Primary Buttons */
-        .stButton > button[kind="primary"] {
-            background-color: #ff4b4b !important;
-            color: #ffffff !important;
-        }
-
-        /* Input Fields - Comprehensive Styling */
-        .stTextInput > div > div > input,
-        .stNumberInput > div > div > input,
-        .stTextArea textarea {
-            background-color: #262730 !important;
-            color: #ffffff !important;
-            border: 1px solid #404040 !important;
-            caret-color: #ffffff !important;
-        }
-
-        /* Input placeholder text */
-        .stTextInput > div > div > input::placeholder,
-        .stNumberInput > div > div > input::placeholder,
-        .stTextArea textarea::placeholder {
-            color: #888888 !important;
-            opacity: 1 !important;
-        }
-
-        /* Input labels */
-        .stTextInput > label,
-        .stNumberInput > label,
-        .stTextArea > label,
-        .stSelectbox > label,
-        .stMultiSelect > label,
-        .stDateInput > label,
-        .stSlider > label {
-            color: #fafafa !important;
-        }
-
-        /* Form inputs inside forms */
-        [data-testid="stForm"] input,
-        [data-testid="stForm"] textarea {
-            background-color: #262730 !important;
-            color: #ffffff !important;
-            border: 1px solid #404040 !important;
-        }
-
-        [data-testid="stForm"] input::placeholder,
-        [data-testid="stForm"] textarea::placeholder {
-            color: #888888 !important;
-        }
-
-        /* Password input */
-        input[type="password"] {
-            background-color: #262730 !important;
-            color: #ffffff !important;
-        }
-
-        /* All input elements */
-        input, textarea, select {
-            background-color: #262730 !important;
-            color: #ffffff !important;
-            border: 1px solid #404040 !important;
-        }
-
-        input::placeholder, textarea::placeholder {
-            color: #888888 !important;
-        }
-
-        /* Select boxes */
-        .stSelectbox > div > div,
-        .stMultiSelect > div > div {
-            background-color: #262730 !important;
-            color: #ffffff !important;
-        }
-
-        .stSelectbox [data-baseweb="select"] > div,
-        .stMultiSelect [data-baseweb="select"] > div {
-            background-color: #262730 !important;
-            color: #ffffff !important;
-        }
-
-        /* Dropdown options */
-        [data-baseweb="popover"] {
-            background-color: #262730 !important;
-        }
-
-        [data-baseweb="popover"] li {
-            color: #ffffff !important;
-        }
-
-        [data-baseweb="menu"] {
-            background-color: #262730 !important;
-        }
-
-        [data-baseweb="menu"] li {
-            color: #ffffff !important;
-            background-color: #262730 !important;
-        }
-
-        [data-baseweb="menu"] li:hover {
-            background-color: #3d5a80 !important;
-        }
-
-        /* Date Input */
-        .stDateInput > div > div > input {
-            background-color: #262730 !important;
-            color: #ffffff !important;
-        }
-
-        /* Checkbox and Toggle */
-        .stCheckbox label span,
-        .stToggle label span {
-            color: #fafafa !important;
-        }
-
-        /* DataFrames and Tables */
-        .dataframe, .stDataFrame {
-            background-color: #262730 !important;
-        }
-
-        .dataframe th, .dataframe td,
-        .stDataFrame th, .stDataFrame td {
-            background-color: #262730 !important;
-            color: #fafafa !important;
-            border-color: #404040 !important;
-        }
-
-        [data-testid="stDataFrame"] * {
-            color: #fafafa !important;
-        }
-
-        /* Tabs */
-        .stTabs [data-baseweb="tab-list"] {
-            background-color: #1a1a2e !important;
-            gap: 8px;
-        }
-
-        .stTabs [data-baseweb="tab"] {
-            background-color: #262730 !important;
-            color: #fafafa !important;
-            border-radius: 8px 8px 0 0;
-        }
-
-        .stTabs [aria-selected="true"] {
-            background-color: #3d5a80 !important;
-            color: #ffffff !important;
-        }
-
-        /* Metrics */
-        [data-testid="stMetricValue"] {
-            color: #ffffff !important;
-        }
-
-        [data-testid="stMetricLabel"] {
-            color: #b0b0b0 !important;
-        }
-
-        [data-testid="stMetricDelta"] svg {
-            fill: currentColor !important;
-        }
-
-        /* Info/Warning/Error/Success boxes */
-        .stAlert {
-            background-color: #262730 !important;
-            color: #fafafa !important;
-        }
-
-        .stAlert > div {
-            color: #fafafa !important;
-        }
-
-        /* Success message */
-        .stSuccess, .element-container .stAlert[data-baseweb="notification"]:has([data-testid="stNotificationSuccess"]) {
-            background-color: #1e4620 !important;
-            color: #a5d6a7 !important;
-        }
-
-        /* Warning message */
-        .stWarning {
-            background-color: #4a3f00 !important;
-            color: #fff59d !important;
-        }
-
-        /* Error message */
-        .stError {
-            background-color: #4a1c1c !important;
-            color: #ef9a9a !important;
-        }
-
-        /* Info message */
-        .stInfo {
-            background-color: #1a3a5c !important;
-            color: #90caf9 !important;
-        }
-
-        /* Caption text */
-        .stCaption, small {
-            color: #b0b0b0 !important;
-        }
-
-        /* Code blocks */
-        code, .stCodeBlock {
-            background-color: #262730 !important;
-            color: #fafafa !important;
-        }
-
-        /* Progress bar */
-        .stProgress > div > div {
-            background-color: #404040 !important;
-        }
-
-        /* Spinner */
-        .stSpinner > div {
-            border-top-color: #3d5a80 !important;
-        }
-
-        /* Divider / Horizontal Rule */
-        hr {
-            border-color: #404040 !important;
-        }
-
-        /* Links */
-        a, a:visited {
-            color: #64b5f6 !important;
-        }
-
-        a:hover {
-            color: #90caf9 !important;
-        }
-
-        /* ==================== CUSTOM CARD STYLES - DARK ==================== */
-
-        /* Bullish cards - Dark Green */
-        .stock-metrics-green,
-        div[style*="background-color: #d4edda"],
-        div[style*="background: #d4edda"] {
-            background-color: #1b5e20 !important;
-            color: #ffffff !important;
-        }
-
-        div[style*="background-color: #28a745"],
-        div[style*="background: #28a745"] {
-            background-color: #2e7d32 !important;
-            color: #ffffff !important;
-        }
-
-        /* Bearish cards - Dark Red */
-        .stock-metrics-red,
-        div[style*="background-color: #f8d7da"],
-        div[style*="background: #f8d7da"] {
-            background-color: #b71c1c !important;
-            color: #ffffff !important;
-        }
-
-        div[style*="background-color: #dc3545"],
-        div[style*="background: #dc3545"] {
-            background-color: #c62828 !important;
-            color: #ffffff !important;
-        }
-
-        /* Neutral cards - Dark Gray */
-        .stock-metrics-white,
-        div[style*="background-color: #f8f9fa"],
-        div[style*="background: #f8f9fa"],
-        div[style*="background-color: #ffffff"],
-        div[style*="background: #ffffff"],
-        div[style*="background-color: #495057"],
-        div[style*="background: #495057"] {
-            background-color: #495057 !important;
-            color: #ffffff !important;
-        }
-
-        /* Yellow/Warning cards */
-        div[style*="background-color: #fff3cd"],
-        div[style*="background: #fff3cd"] {
-            background-color: #4a3f00 !important;
-            color: #fff59d !important;
-        }
-
-        /* Blue/Info cards */
-        div[style*="background-color: #d1ecf1"],
-        div[style*="background: #d1ecf1"] {
-            background-color: #1a3a5c !important;
-            color: #90caf9 !important;
-        }
-
-        /* All nested text in cards */
-        div[style*="background"] p,
-        div[style*="background"] span,
-        div[style*="background"] strong,
-        div[style*="background"] h4,
-        div[style*="background"] div {
-            color: inherit !important;
-        }
-
-        /* Positive values */
-        .positive, [style*="color: #28a745"], [style*="color:#28a745"],
-        [style*="color: #155724"], [style*="color:#155724"] {
-            color: #81c784 !important;
-        }
-
-        /* Negative values */
-        .negative, [style*="color: #dc3545"], [style*="color:#dc3545"],
-        [style*="color: #721c24"], [style*="color:#721c24"] {
-            color: #e57373 !important;
-        }
-
-        /* Column headers */
-        .column-header-bullish {
-            color: #81c784 !important;
-        }
-
-        .column-header-bearish {
-            color: #e57373 !important;
-        }
-
-        .column-header-neutral {
-            color: #b0b0b0 !important;
-        }
-
-        /* Toast notifications */
-        [data-testid="stToast"] {
-            background-color: #262730 !important;
-            color: #fafafa !important;
-        }
-
-        /* Plotly charts */
-        .js-plotly-plot .plotly .main-svg {
-            background-color: #0e1117 !important;
-        }
-
-        </style>
-        """,
-            unsafe_allow_html=True,
-        )
-    else:
-        # Light Mode CSS (Original)
-        st.markdown(
-            """
-        <style>
-        /* FORCE SIDEBAR TO BE VISIBLE AND EXPANDED */
-        [data-testid="stSidebar"] {
-            background-color: #f8f9fa !important;
-            min-width: 250px !important;
-            width: 300px !important;
-        }
-
-        [data-testid="stSidebar"][aria-expanded="false"] {
-            min-width: 250px !important;
-            width: 300px !important;
-            margin-left: 0 !important;
-        }
-
-        /* Ensure sidebar content is visible */
-        [data-testid="stSidebarContent"] {
-            display: block !important;
-            visibility: visible !important;
-        }
-
-        /* Hide only specific branding elements */
-        footer {
-            display: none !important;
-            visibility: hidden !important;
-        }
-
-        .stDeployButton {
-            display: none !important;
-            visibility: hidden !important;
-        }
-
-        /* Light Mode - Bullish card styling - Green */
-        .bullish-container {
-            background-color: #d4edda !important;
-            border-left: 4px solid #28a745;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-        }
-
-        /* Light Mode - Bearish card styling - Red */
-        .bearish-container {
-            background-color: #f8d7da !important;
-            border-left: 4px solid #dc3545;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-        }
-
-        /* Light Mode - Neutral card styling - White/Light */
-        .neutral-container {
-            background-color: #ffffff !important;
-            border-left: 4px solid #6c757d;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            border: 1px solid #dee2e6;
-        }
-
-        /* Style metrics labels */
-        .metric-label {
-            font-size: 12px;
-            color: #666;
-            margin-bottom: 2px;
-        }
-
-        .metric-value {
-            font-size: 16px;
-            font-weight: bold;
-        }
-
-        .positive {
-            color: #28a745 !important;
-        }
-
-        .negative {
-            color: #dc3545 !important;
-        }
-
-        /* MACD diff row styling */
-        .macd-diff-row {
-            display: flex;
-            justify-content: space-between;
-            gap: 10px;
-        }
-
-        .macd-diff-item {
-            text-align: center;
-            flex: 1;
-        }
-
-        /* Column headers styling */
-        .column-header-bullish {
-            color: #28a745;
-        }
-
-        .column-header-bearish {
-            color: #dc3545;
-        }
-
-        .column-header-neutral {
-            color: #6c757d;
-        }
-
-        /* Stock metrics container */
-        .stock-metrics-green {
-            background-color: #d4edda;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #28a745;
-            margin: 10px 0;
-        }
-
-        .stock-metrics-red {
-            background-color: #f8d7da;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #dc3545;
-            margin: 10px 0;
-        }
-
-        .stock-metrics-white {
-            background-color: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #6c757d;
-            border: 1px solid #dee2e6;
-            margin: 10px 0;
-        }
-        </style>
-        """,
-            unsafe_allow_html=True,
-        )
+    """Inject custom CSS for styling - Force Light Theme"""
+    st.markdown(
+        """
+    <style>
+    /* ==================== FORCE LIGHT THEME ==================== */
+
+    /* Main app background - FORCE WHITE */
+    .stApp, .main, [data-testid="stAppViewContainer"] {
+        background-color: #ffffff !important;
+    }
+
+    .block-container {
+        background-color: #ffffff !important;
+    }
+
+    /* ALL TEXT - FORCE DARK COLOR */
+    .stApp, .stApp p, .stApp span, .stApp div, .stApp label,
+    .stMarkdown, .stMarkdown p, .stMarkdown span,
+    h1, h2, h3, h4, h5, h6,
+    [data-testid="stMarkdownContainer"],
+    [data-testid="stMarkdownContainer"] p,
+    [data-testid="stMarkdownContainer"] span,
+    [data-testid="stMarkdownContainer"] div {
+        color: #333333 !important;
+    }
+
+    /* Sidebar - Light background */
+    [data-testid="stSidebar"] {
+        background-color: #f8f9fa !important;
+        min-width: 250px !important;
+        width: 300px !important;
+    }
+
+    [data-testid="stSidebar"] * {
+        color: #333333 !important;
+    }
+
+    [data-testid="stSidebar"][aria-expanded="false"] {
+        min-width: 250px !important;
+        width: 300px !important;
+        margin-left: 0 !important;
+    }
+
+    /* Ensure sidebar content is visible */
+    [data-testid="stSidebarContent"] {
+        display: block !important;
+        visibility: visible !important;
+        background-color: #f8f9fa !important;
+    }
+
+    /* Header - Light */
+    header[data-testid="stHeader"] {
+        background-color: #ffffff !important;
+    }
+
+    /* Inputs - Light theme */
+    .stTextInput > div > div > input,
+    .stSelectbox > div > div,
+    .stNumberInput > div > div > input {
+        background-color: #ffffff !important;
+        color: #333333 !important;
+        border: 1px solid #dee2e6 !important;
+    }
+
+    /* Dataframes */
+    .stDataFrame, [data-testid="stDataFrame"] {
+        background-color: #ffffff !important;
+    }
+
+    .stDataFrame th, .stDataFrame td {
+        color: #333333 !important;
+        background-color: #ffffff !important;
+    }
+
+    /* Expanders */
+    .streamlit-expanderHeader {
+        background-color: #f8f9fa !important;
+        color: #333333 !important;
+    }
+
+    .streamlit-expanderContent {
+        background-color: #ffffff !important;
+        color: #333333 !important;
+    }
+
+    /* Metrics */
+    [data-testid="stMetricValue"],
+    [data-testid="stMetricLabel"] {
+        color: #333333 !important;
+    }
+
+    /* Buttons */
+    .stButton > button {
+        background-color: #1a73e8 !important;
+        color: #ffffff !important;
+        border: none !important;
+    }
+
+    .stButton > button:hover {
+        background-color: #1557b0 !important;
+    }
+
+    .stButton > button[kind="secondary"] {
+        background-color: #f8f9fa !important;
+        color: #333333 !important;
+        border: 1px solid #dee2e6 !important;
+    }
+
+    /* Hide footer and deploy button */
+    footer {
+        display: none !important;
+    }
+
+    .stDeployButton {
+        display: none !important;
+    }
+
+    /* Bullish card styling - Green */
+    .bullish-container {
+        background-color: #d4edda !important;
+        border-left: 4px solid #28a745;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+    }
+
+    /* Bearish card styling - Red */
+    .bearish-container {
+        background-color: #f8d7da !important;
+        border-left: 4px solid #dc3545;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+    }
+
+    /* Neutral card styling */
+    .neutral-container {
+        background-color: #f8f9fa !important;
+        border-left: 4px solid #6c757d;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 10px;
+        border: 1px solid #dee2e6;
+    }
+
+    /* Metric styling */
+    .metric-label {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 2px;
+    }
+
+    .metric-value {
+        font-size: 16px;
+        font-weight: bold;
+    }
+
+    .positive {
+        color: #28a745 !important;
+    }
+
+    .negative {
+        color: #dc3545 !important;
+    }
+
+    /* Stock card styling */
+    .stock-card-bullish {
+        background-color: #28a745;
+        color: white;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 10px 0;
+    }
+
+    .stock-card-bearish {
+        background-color: #dc3545;
+        color: white;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 10px 0;
+    }
+
+    .stock-card-neutral {
+        background-color: #6c757d;
+        color: white;
+        padding: 15px;
+        border-radius: 8px;
+        border-left: 4px solid #6c757d;
+        border: 1px solid #dee2e6;
+        margin: 10px 0;
+    }
+    </style>
+    """,
+        unsafe_allow_html=True,
+    )
 
 
 # ----------------- Stock Card Component -----------------
@@ -4528,6 +4085,9 @@ def render_stock_card(stock_data, card_index, trend_type):
 
 # ----------------- PAGE: Authentication -----------------
 def auth_page():
+    # Apply theme CSS
+    inject_custom_css()
+
     st.title("🔐 Upstox API Authentication")
     st.markdown("---")
 
@@ -4554,10 +4114,14 @@ def auth_page():
 
         # New Authentication
         st.markdown("#### 🔗 Option 1: Authenticate with Upstox")
-        auth_url = f"https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id={API_KEY}&redirect_uri={REDIRECT_URL}"
+        # Include offline_access scope to get refresh token (longer validity)
+        auth_url = f"https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id={API_KEY}&redirect_uri={REDIRECT_URL}&scope=offline_access"
         st.markdown(f"1. [Click here to authenticate with Upstox]({auth_url})")
         st.markdown("2. After authorization, copy the code from the URL")
         st.markdown("3. Paste the code below and click Authenticate")
+        st.info(
+            "💡 This will request a **refresh token** for auto-renewal (no daily re-auth needed)"
+        )
 
         auth_code = st.text_input("Enter Authorization Code:", key="auth_code_input")
         if st.button("🔐 Authenticate", width="stretch", type="primary"):
@@ -4617,19 +4181,9 @@ def screening_page():
     user_role = user.get("role", "user") if user else "user"
     user_initial = user_name[0].upper() if user_name else "U"
 
-    is_dark = st.session_state.get("dark_mode", True)
-
-    # Profile avatar colors
-    if is_dark:
-        avatar_bg = "#3d5a80"
-        dropdown_bg = "#262730"
-        dropdown_text = "#ffffff"
-        dropdown_border = "#404040"
-    else:
-        avatar_bg = "#1a73e8"
-        dropdown_bg = "#ffffff"
-        dropdown_text = "#333333"
-        dropdown_border = "#dadce0"
+    # Profile avatar colors (light mode)
+    avatar_bg = "#1a73e8"
+    dropdown_text = "#333333"
 
     # ============================================================
     # SIDEBAR - RENDER FIRST to ensure visibility on Streamlit Cloud
@@ -4638,13 +4192,13 @@ def screening_page():
     # Profile Avatar Header in Sidebar
     st.sidebar.markdown(
         f"""
-    <div style="text-align: center; padding: 15px 0; border-bottom: 1px solid {"#404040" if is_dark else "#e0e0e0"}; margin-bottom: 15px;">
+    <div style="text-align: center; padding: 15px 0; border-bottom: 1px solid #e0e0e0; margin-bottom: 15px;">
         <div style="width: 60px; height: 60px; border-radius: 50%; background: {avatar_bg}; color: white;
              display: inline-flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 600; margin: 0 auto;">
             {user_initial}
         </div>
         <div style="margin-top: 10px; font-weight: 600; font-size: 16px; color: {dropdown_text};">{user_name}</div>
-        <div style="font-size: 12px; color: {"#888" if is_dark else "#666"};">{user_email}</div>
+        <div style="font-size: 12px; color: #666;">{user_email}</div>
         <div style="margin-top: 8px;">
             <span style="background: {"#1b5e20" if user_role == "admin" else "#3d5a80"}; color: white;
                   padding: 3px 12px; border-radius: 12px; font-size: 11px;">
@@ -4675,15 +4229,6 @@ def screening_page():
         ):
             st.session_state.page = "token_management"
             st.rerun()
-
-    # Dark Mode Toggle
-    if st.sidebar.button(
-        f"{'☀️ Switch to Light Mode' if is_dark else '🌙 Switch to Dark Mode'}",
-        key="dark_mode_toggle_side",
-        use_container_width=True,
-    ):
-        st.session_state.dark_mode = not st.session_state.dark_mode
-        st.rerun()
 
     # Logout with confirmation
     if "confirm_logout" not in st.session_state:
@@ -4794,19 +4339,6 @@ def screening_page():
     # ============================================================
     # MAIN CONTENT - After sidebar
     # ============================================================
-
-    # Simple CSS for dark mode header
-    st.markdown(
-        f"""
-    <style>
-    /* Hide default header white bar */
-    header[data-testid="stHeader"] {{
-        background-color: {"#0e1117" if is_dark else "#ffffff"} !important;
-    }}
-    </style>
-    """,
-        unsafe_allow_html=True,
-    )
 
     # Title row with Buy button only (profile is in sidebar)
     title_col1, title_col2 = st.columns([5, 1])
@@ -5103,6 +4635,9 @@ def background_refresh_data(
 
 # ----------------- PAGE: Detail View -----------------
 def detail_page():
+    # Apply theme CSS
+    inject_custom_css()
+
     symbol = st.session_state.selected_symbol
     stock_data = st.session_state.selected_stock_data
 
@@ -5207,7 +4742,7 @@ def detail_page():
                         # Display live prices
                         st.markdown(
                             f"""
-                        <div style="background-color: #d4edda; padding: 10px; border-radius: 8px; margin-top: 10px;">
+                        <div style="background-color: #d4edda; color: #155724; padding: 10px; border-radius: 8px; margin-top: 10px;">
                             <div><strong>🔴 Live Price:</strong> ₹{current_price:,.2f}</div>
                             <div><strong>📈 Today's High:</strong> ₹{high_price:,.2f}</div>
                             <div><strong>📉 Today's Low:</strong> ₹{low_price:,.2f}</div>
@@ -5368,120 +4903,141 @@ def detail_page():
 
     # Create chart using Plotly
     if indicators and len(indicators) > 20:
-        chart_data = indicators[:60][::-1]  # Last 60 days, ascending order
+        try:
+            chart_data = indicators[:60][::-1]  # Last 60 days, ascending order
 
-        fig = make_subplots(
-            rows=2,
-            cols=1,
-            shared_xaxes=True,
-            vertical_spacing=0.1,
-            row_heights=[0.7, 0.3],
-            subplot_titles=("Ichimoku Cloud", "MACD"),
-        )
+            fig = make_subplots(
+                rows=2,
+                cols=1,
+                shared_xaxes=True,
+                vertical_spacing=0.1,
+                row_heights=[0.7, 0.3],
+                subplot_titles=("Ichimoku Cloud", "MACD"),
+            )
 
-        dates = [d["date"] for d in chart_data]
-        closes = [d["close"] for d in chart_data]
-        tenkan = [d["tenkan_sen"] for d in chart_data]
-        kijun = [d["kijun_sen"] for d in chart_data]
-        span_a = [d["senkou_span_a"] for d in chart_data]
-        span_b = [d["senkou_span_b"] for d in chart_data]
-        macd_hist = [d["macd_hist"] for d in chart_data]
-        macd_line = [d["macd"] for d in chart_data]
-        signal_line = [d["macd_signal"] for d in chart_data]
+            dates = [d["date"] for d in chart_data]
+            closes = [d["close"] for d in chart_data]
+            tenkan = [d["tenkan_sen"] for d in chart_data]
+            kijun = [d["kijun_sen"] for d in chart_data]
+            span_a = [d["senkou_span_a"] for d in chart_data]
+            span_b = [d["senkou_span_b"] for d in chart_data]
+            macd_hist = [d["macd_hist"] for d in chart_data]
+            macd_line = [d["macd"] for d in chart_data]
+            signal_line = [d["macd_signal"] for d in chart_data]
 
-        # Price line
-        fig.add_trace(
-            go.Scatter(
-                x=dates, y=closes, name="Close Price", line=dict(color="black", width=2)
-            ),
-            row=1,
-            col=1,
-        )
+            # Colors for light mode
+            price_color = "#000000"
+            tenkan_color = "#0000ff"
+            kijun_color = "#ff0000"
 
-        # Ichimoku lines
-        fig.add_trace(
-            go.Scatter(
-                x=dates,
-                y=tenkan,
-                name="Tenkan-sen (Conv.)",
-                line=dict(color="blue", width=1),
-            ),
-            row=1,
-            col=1,
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=dates,
-                y=kijun,
-                name="Kijun-sen (Base)",
-                line=dict(color="red", width=1),
-            ),
-            row=1,
-            col=1,
-        )
+            fig.add_trace(
+                go.Scatter(
+                    x=dates,
+                    y=closes,
+                    name="Close Price",
+                    line=dict(color=price_color, width=2),
+                ),
+                row=1,
+                col=1,
+            )
 
-        # Cloud
-        fig.add_trace(
-            go.Scatter(
-                x=dates,
-                y=span_a,
-                name="Senkou Span A",
-                line=dict(color="green", width=0.5),
-                fill=None,
-            ),
-            row=1,
-            col=1,
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=dates,
-                y=span_b,
-                name="Kumo (Cloud)",
-                line=dict(color="red", width=0.5),
-                fill="tonexty",
-                fillcolor="rgba(255,0,0,0.1)",
-            ),
-            row=1,
-            col=1,
-        )
+            # Ichimoku lines
+            fig.add_trace(
+                go.Scatter(
+                    x=dates,
+                    y=tenkan,
+                    name="Tenkan-sen (Conv.)",
+                    line=dict(color=tenkan_color, width=1),
+                ),
+                row=1,
+                col=1,
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=dates,
+                    y=kijun,
+                    name="Kijun-sen (Base)",
+                    line=dict(color=kijun_color, width=1),
+                ),
+                row=1,
+                col=1,
+            )
 
-        # MACD
-        colors = ["green" if h and h >= 0 else "red" for h in macd_hist]
-        fig.add_trace(
-            go.Bar(x=dates, y=macd_hist, name="Histogram", marker_color=colors),
-            row=2,
-            col=1,
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=dates, y=macd_line, name="MACD Line", line=dict(color="blue", width=1)
-            ),
-            row=2,
-            col=1,
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=dates,
-                y=signal_line,
-                name="Signal Line",
-                line=dict(color="orange", width=1),
-            ),
-            row=2,
-            col=1,
-        )
+            # Cloud
+            fig.add_trace(
+                go.Scatter(
+                    x=dates,
+                    y=span_a,
+                    name="Senkou Span A",
+                    line=dict(color="green", width=0.5),
+                    fill=None,
+                ),
+                row=1,
+                col=1,
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=dates,
+                    y=span_b,
+                    name="Kumo (Cloud)",
+                    line=dict(color="red", width=0.5),
+                    fill="tonexty",
+                    fillcolor="rgba(255,0,0,0.1)",
+                ),
+                row=1,
+                col=1,
+            )
 
-        fig.update_layout(
-            height=600,
-            showlegend=True,
-            legend=dict(
-                orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
-            ),
-        )
-        fig.update_xaxes(title_text="Date", row=2, col=1)
-        fig.update_yaxes(title_text="Price", row=1, col=1)
-        fig.update_yaxes(title_text="MACD", row=2, col=1)
+            # MACD
+            macd_colors = ["green" if h and h >= 0 else "red" for h in macd_hist]
+            fig.add_trace(
+                go.Bar(
+                    x=dates, y=macd_hist, name="Histogram", marker_color=macd_colors
+                ),
+                row=2,
+                col=1,
+            )
 
-        st.plotly_chart(fig, width="stretch")
+            fig.add_trace(
+                go.Scatter(
+                    x=dates,
+                    y=macd_line,
+                    name="MACD Line",
+                    line=dict(color="blue", width=1),
+                ),
+                row=2,
+                col=1,
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=dates,
+                    y=signal_line,
+                    name="Signal Line",
+                    line=dict(color="orange", width=1),
+                ),
+                row=2,
+                col=1,
+            )
+
+            # Chart layout
+            fig.update_layout(
+                height=600,
+                showlegend=True,
+                legend=dict(
+                    orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+                ),
+            )
+
+            # Update all axes for visibility
+            fig.update_xaxes(showgrid=True)
+            fig.update_yaxes(showgrid=True)
+            fig.update_xaxes(title_text="Date", row=2, col=1)
+            fig.update_yaxes(title_text="Price", row=1, col=1)
+            fig.update_yaxes(title_text="MACD", row=2, col=1)
+
+            st.plotly_chart(fig, use_container_width=True)
+        except Exception as e:
+            st.error(f"Error rendering chart: {str(e)}")
     else:
         st.warning("Not enough data to display chart.")
 
@@ -5505,8 +5061,8 @@ def detail_page():
                 f"✅ API Token found (ends with ...{current_token[-8:]}) | 🔄 Auto-refresh enabled"
             )
         else:
-            st.warning(
-                "⚠️ Token found but NO refresh token - will need manual re-auth when expired"
+            st.info(
+                "ℹ️ Token valid - API calls will work! (No auto-refresh - manual re-auth needed after expiry)"
             )
 
         if expires_at and expires_at != "Unknown":
@@ -5515,18 +5071,26 @@ def detail_page():
                 time_left = expiry_time - datetime.now()
                 if time_left.total_seconds() > 0:
                     hours_left = time_left.total_seconds() / 3600
-                    st.caption(
-                        f"⏰ Token expires: {expires_at} ({hours_left:.1f} hours left)"
-                    )
+                    if hours_left > 1:
+                        st.success(
+                            f"✅ Token valid for {hours_left:.1f} hours - Click buttons below to fetch option data!"
+                        )
+                    else:
+                        st.warning(f"⚠️ Token expires soon: {hours_left:.1f} hours left")
                 else:
-                    st.caption(f"⏰ Token expired at: {expires_at}")
+                    st.error(
+                        f"❌ Token EXPIRED at: {expires_at} - Please re-authenticate"
+                    )
             except:
                 st.caption(f"⏰ Token expires: {expires_at}")
     else:
         st.warning("⚠️ No API token found")
 
     # Simple Token Management section with link to full page
-    with st.expander("🔑 Quick Token Actions", expanded=not current_token):
+    # Collapse by default if token is valid to show fetch buttons more prominently
+    with st.expander(
+        "🔑 Quick Token Actions", expanded=not current_token or not token_info
+    ):
         col1, col2, col3 = st.columns(3)
 
         with col1:
@@ -5574,7 +5138,12 @@ def detail_page():
 
     st.markdown("---")
 
-    # Check if stock has options
+    # Check if stock has options - with clear instructions
+    st.markdown("#### 📥 Fetch Option Data")
+    st.caption(
+        "Select expiry date (optional) and click a button to fetch option contracts"
+    )
+
     col1, col2 = st.columns([2, 1])
 
     with col1:
@@ -6095,78 +5664,9 @@ def login_page():
     """User Login Screen"""
     import hashlib
 
-    # Check dark mode
-    is_dark = st.session_state.get("dark_mode", True)  # Default to dark
-
-    # Set colors based on theme
-    if is_dark:
-        bg_color = "#0e1117"
-        title_color = "#ffffff"
-        subtitle_color = "#b0b0b0"
-        input_bg = "#1e2130"
-        input_border = "#404040"
-        text_color = "#ffffff"
-    else:
-        bg_color = "#ffffff"
-        title_color = "#333333"
-        subtitle_color = "#666666"
-        input_bg = "#f8f9fa"
-        input_border = "#dee2e6"
-        text_color = "#333333"
-
-    # Minimal scoped CSS - only affects login page elements with specific ID
-    st.markdown(
-        f"""
-    <style>
-    /* Login page background only */
-    .stApp {{
-        background-color: {bg_color};
-    }}
-
-    /* Scoped login form styles using form key */
-    [data-testid="stForm"] {{
-        background: transparent;
-    }}
-
-    /* Login form inputs - scoped to forms only */
-    [data-testid="stForm"] .stTextInput > div > div > input {{
-        background-color: {input_bg};
-        color: {text_color};
-        border: 2px solid {input_border};
-        border-radius: 8px;
-        font-size: 16px;
-        padding: 12px 15px;
-        height: 50px;
-    }}
-
-    [data-testid="stForm"] .stTextInput > div > div > input:focus {{
-        border-color: #4da6ff;
-        box-shadow: 0 0 5px rgba(77, 166, 255, 0.3);
-    }}
-
-    [data-testid="stForm"] .stTextInput > div > div > input::placeholder {{
-        color: #888888;
-    }}
-
-    /* Login form labels */
-    [data-testid="stForm"] .stTextInput > label {{
-        color: {text_color};
-        font-size: 16px;
-        font-weight: 500;
-    }}
-
-    /* Login form buttons */
-    [data-testid="stForm"] .stFormSubmitButton > button {{
-        font-size: 16px;
-        font-weight: 600;
-        padding: 12px 24px;
-        height: 48px;
-        border-radius: 8px;
-    }}
-    </style>
-    """,
-        unsafe_allow_html=True,
-    )
+    # Light mode colors
+    title_color = "#333333"
+    subtitle_color = "#666666"
 
     # Center the login form
     col1, col2, col3 = st.columns([1, 2, 1])
@@ -6175,7 +5675,7 @@ def login_page():
         st.markdown("")
         st.markdown("")
 
-        # Logo and title using HTML with inline styles
+        # Logo and title
         st.markdown(
             f"""
         <div style="text-align: center; padding: 30px;">
@@ -6203,19 +5703,9 @@ def login_page():
 
             st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
 
-            col_btn1, col_btn2 = st.columns(2)
-            with col_btn1:
-                submit = st.form_submit_button(
-                    "🚀 Login", type="primary", use_container_width=True
-                )
-            with col_btn2:
-                dark_toggle = st.form_submit_button(
-                    "🌙 Dark" if not is_dark else "☀️ Light", use_container_width=True
-                )
-
-            if dark_toggle:
-                st.session_state.dark_mode = not st.session_state.dark_mode
-                st.rerun()
+            submit = st.form_submit_button(
+                "🚀 Login", type="primary", use_container_width=True
+            )
 
             if submit:
                 if email and password:
@@ -6300,8 +5790,6 @@ def profile_page():
 
     inject_custom_css()
 
-    is_dark = st.session_state.get("dark_mode", False)
-
     st.title("👤 My Profile")
 
     # Back button
@@ -6317,17 +5805,11 @@ def profile_page():
         st.error("❌ Not logged in")
         return
 
-    # User info card
-    if is_dark:
-        card_bg = "#262730"
-        text_color = "#fafafa"
-        success_bg = "#1b5e20"
-        admin_bg = "#1a237e"
-    else:
-        card_bg = "#f8f9fa"
-        text_color = "#333333"
-        success_bg = "#d4edda"
-        admin_bg = "#e3f2fd"
+    # User info card - light mode colors
+    card_bg = "#f8f9fa"
+    text_color = "#333333"
+    success_bg = "#d4edda"
+    admin_bg = "#e3f2fd"
 
     # Get full user details from database
     try:
@@ -6370,7 +5852,7 @@ def profile_page():
     with col2:
         st.markdown(
             f"""
-        <div style="background: {role_color}; padding: 20px; border-radius: 10px; color: {"#ffffff" if is_dark else "#155724"};">
+        <div style="background: {role_color}; padding: 20px; border-radius: 10px; color: #155724;">
             <h4 style="margin: 0 0 15px 0;">✅ Account Status</h4>
             <p style="margin: 8px 0;"><strong>Status:</strong> ✅ Active</p>
             <p style="margin: 8px 0;"><strong>Role:</strong> {role_icon} {role_text}</p>
@@ -6476,23 +5958,6 @@ def profile_page():
 
     st.markdown("---")
 
-    # Theme Settings
-    st.markdown("### 🎨 Theme Settings")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        if st.button(
-            "🌙 Dark Mode" if not is_dark else "☀️ Light Mode",
-            key="profile_theme_toggle",
-        ):
-            st.session_state.dark_mode = not st.session_state.dark_mode
-            st.rerun()
-
-    with col2:
-        current_theme = "Dark Mode 🌙" if is_dark else "Light Mode ☀️"
-        st.info(f"Current Theme: **{current_theme}**")
-
     st.markdown("---")
 
     # Danger Zone
@@ -6518,8 +5983,6 @@ def user_management_page():
 
     inject_custom_css()
 
-    is_dark = st.session_state.get("dark_mode", True)
-
     # Check if user is admin
     current_user = st.session_state.logged_in_user
     if not current_user or current_user.get("role") != "admin":
@@ -6539,19 +6002,12 @@ def user_management_page():
 
     st.markdown("---")
 
-    # Colors based on theme
-    if is_dark:
-        card_bg = "#262730"
-        text_color = "#fafafa"
-        admin_bg = "#1a237e"
-        user_bg = "#1b5e20"
-        inactive_bg = "#b71c1c"
-    else:
-        card_bg = "#f8f9fa"
-        text_color = "#333333"
-        admin_bg = "#e3f2fd"
-        user_bg = "#d4edda"
-        inactive_bg = "#f8d7da"
+    # Light mode colors
+    card_bg = "#f8f9fa"
+    text_color = "#333333"
+    admin_bg = "#e3f2fd"
+    user_bg = "#d4edda"
+    inactive_bg = "#f8d7da"
 
     # Fetch all users
     try:
@@ -6791,11 +6247,8 @@ def user_management_page():
 def token_management_page():
     """Dedicated Token Management Screen"""
 
-    # Apply dark/light mode
+    # Apply CSS
     inject_custom_css()
-
-    # Check dark mode for styling
-    is_dark = st.session_state.get("dark_mode", False)
 
     st.title("🔐 Token Management")
     st.markdown("Manage your Upstox API authentication token")
@@ -6876,13 +6329,9 @@ def token_management_page():
             else:
                 st.warning("⏰ Unknown")
 
-        # Token details
-        if is_dark:
-            card_bg = "#262730"
-            text_color = "#fafafa"
-        else:
-            card_bg = "#f8f9fa"
-            text_color = "#333333"
+        # Token details - light mode colors
+        card_bg = "#f8f9fa"
+        text_color = "#333333"
 
         st.markdown(
             f"""
@@ -6901,7 +6350,7 @@ def token_management_page():
         if user_info:
             st.markdown(
                 f"""
-            <div style="background: {"#1b5e20" if is_dark else "#d4edda"}; padding: 15px; border-radius: 10px; margin: 15px 0; color: {"#ffffff" if is_dark else "#155724"};">
+            <div style="background: #d4edda; padding: 15px; border-radius: 10px; margin: 15px 0; color: #155724;">
                 <h4 style="margin: 0 0 10px 0;">👤 Logged in as</h4>
                 <p style="margin: 5px 0;"><strong>Name:</strong> {user_info.get("user_name", "N/A")}</p>
                 <p style="margin: 5px 0;"><strong>Email:</strong> {user_info.get("email", "N/A")}</p>
@@ -7002,7 +6451,12 @@ def token_management_page():
     4. Paste the code below and click "Get New Token"
     """)
 
-    auth_url = f"https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id={API_KEY}&redirect_uri={REDIRECT_URL}"
+    st.info(
+        "💡 **Tip:** This authentication includes `offline_access` scope, which gives you a **refresh token** for automatic renewal. No need to re-authenticate daily!"
+    )
+
+    # Include offline_access scope to get refresh token
+    auth_url = f"https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id={API_KEY}&redirect_uri={REDIRECT_URL}&scope=offline_access"
 
     st.markdown(f"### [🔗 Click here to login to Upstox]({auth_url})")
 
